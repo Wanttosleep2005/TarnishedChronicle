@@ -1,0 +1,24 @@
+appId: com.tarnishedchronicle.app
+productName: TarnishedChronicle
+directories:
+  output: release
+files:
+  - out/**/*
+  - package.json
+asar: true
+npmRebuild: false
+publish:
+  provider: github
+  owner: Wanttosleep2005
+  repo: TarnishedChronicle
+win:
+  icon: build/icon.png
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true

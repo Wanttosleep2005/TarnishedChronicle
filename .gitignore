@@ -1,0 +1,27 @@
+node_modules/
+out/
+dist/
+release/
+*.log
+*.tsbuildinfo
+.env
+.env.*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.claude/
+backups/
+shots/
+*.info.json
+
+# 参考仓库与旧代码(本地保留,不入库)
+_reference/
+_legacy/
+
+# 测试存档
+test-fixtures/*.sl2
+test-fixtures/*.co2
+
+# 调试截图
+shot-*.png

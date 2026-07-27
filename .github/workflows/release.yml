@@ -1,0 +1,35 @@
+name: Release Windows Installer
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run audit:data
+      - run: npm run smoke
+      - run: npm run package
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(
+            (Get-ChildItem release -Filter '*.exe' | Select-Object -ExpandProperty FullName),
+            (Get-ChildItem release -Filter 'latest.yml' | Select-Object -ExpandProperty FullName),
+            (Get-ChildItem release -Filter '*.blockmap' | Select-Object -ExpandProperty FullName)
+          )
+          if ($assets.Count -lt 3) { throw 'Release assets are incomplete.' }
+          gh release create $env:GITHUB_REF_NAME $assets --generate-notes
