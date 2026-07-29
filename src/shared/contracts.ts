@@ -272,6 +272,9 @@ export interface SlotSnapshot {
   graceFlags?: number[];
   /** 当时的血迹(最近一次死亡地点):map_id 四元组 + 本地坐标 + 卢恩数。 */
   blood?: { m: [number, number, number, number]; x: number; z: number; r: number };
+  /** 当前地图四元组与最后休息赐福实体，用于时间线地点推导。 */
+  mapId?: [number, number, number, number];
+  restedGraceEntityId?: number;
 }
 
 export interface HistorySnapshot {

@@ -21,6 +21,17 @@ jobs:
       - run: npm run audit:data
       - run: npm run smoke
       - run: npm run package
+      - name: Build writable runtime archive
+        shell: pwsh
+        run: |
+          $runtimeRoot = Join-Path $PWD 'release\win-unpacked'
+          if (-not (Test-Path (Join-Path $runtimeRoot 'TarnishedChronicle.exe'))) {
+            throw 'The unpacked runtime is missing TarnishedChronicle.exe.'
+          }
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          $runtimeZip = Join-Path $PWD "release\TarnishedChronicle-runtime-$version.zip"
+          if (Test-Path $runtimeZip) { Remove-Item $runtimeZip -Force }
+          Compress-Archive -Path (Join-Path $runtimeRoot '*') -DestinationPath $runtimeZip -CompressionLevel Optimal
       - name: Publish GitHub Release
         shell: pwsh
         env:
@@ -29,7 +40,8 @@ jobs:
           $assets = @(
             (Get-ChildItem release -Filter '*.exe' | Select-Object -ExpandProperty FullName),
             (Get-ChildItem release -Filter 'latest.yml' | Select-Object -ExpandProperty FullName),
-            (Get-ChildItem release -Filter '*.blockmap' | Select-Object -ExpandProperty FullName)
+            (Get-ChildItem release -Filter '*.blockmap' | Select-Object -ExpandProperty FullName),
+            (Get-ChildItem release -Filter 'TarnishedChronicle-runtime-*.zip' | Select-Object -ExpandProperty FullName)
           )
-          if ($assets.Count -lt 3) { throw 'Release assets are incomplete.' }
+          if ($assets.Count -lt 4) { throw 'Release assets are incomplete.' }
           gh release create $env:GITHUB_REF_NAME $assets --generate-notes

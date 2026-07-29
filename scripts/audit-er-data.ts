@@ -6,6 +6,7 @@ import { TALISMANS } from '../src/renderer/src/data/generated/talismans.ts';
 import { GOODS } from '../src/renderer/src/data/generated/goods.ts';
 import { FIXED_BOSSES } from '../src/renderer/src/lib/boss-data.ts';
 import { resolveGaItemId } from '../src/renderer/src/lib/derive.ts';
+import { COLLECTION_GROUPS, deriveCollections, unresolvedAcquisitionHint } from '../src/renderer/src/lib/collections.ts';
 import { findItemPixel } from '../src/renderer/src/lib/locate-item.ts';
 import { markerToMasterPixel } from '../src/renderer/src/lib/map-affine.ts';
 import { questDefinitionAudit } from '../src/renderer/src/lib/quests.ts';
@@ -117,6 +118,32 @@ if (normalGood) {
     `普通道具被错误过滤:${normalGood.id}`,
   );
 }
+
+const emptyCollectionProfile = {
+  ownedWeaponBaseIds: new Set<number>(),
+  ownedArmorIds: new Set<number>(),
+  ownedTalismanIds: new Set<number>(),
+  ownedGoodsIds: new Set<number>(),
+  ownedAshOfWarIds: new Set<number>(),
+};
+const collectionCatalog = deriveCollections(emptyCollectionProfile);
+check(collectionCatalog.groups.length === COLLECTION_GROUPS.length, `collection groups: ${collectionCatalog.groups.length}`);
+check(collectionCatalog.groups.every((group) => group.total > 0), 'collection group is empty');
+check(COLLECTION_GROUPS.every((group) => unresolvedAcquisitionHint(group.kind).length > 0), '收藏类别缺少无法确认说明');
+check(new Set(collectionCatalog.entries.map((entry) => entry.key)).size === collectionCatalog.entries.length, 'collection keys are not unique');
+check(!collectionCatalog.entries.some((entry) => entry.id === 110000), 'unarmed is included in collections');
+check(
+  !collectionCatalog.entries.some((entry) => entry.kind === 'weapon' && /arrow|bolt|bow|crossbow/i.test(entry.category)),
+  'bows, crossbows, arrows, or bolts are included in collections',
+);
+const collectionWeapons = collectionCatalog.entries.filter((entry) => entry.kind === 'weapon');
+check(collectionWeapons.every((entry) => entry.id % 10000 === 0), 'weapon collection contains a non-base ID');
+check(new Set(collectionWeapons.map((entry) => entry.id)).size === collectionWeapons.length, 'weapon base IDs are duplicated');
+check(
+  collectionCatalog.entries.filter((entry) => entry.kind === 'armor').every((entry) => entry.placementType === 'armor') &&
+    collectionCatalog.entries.filter((entry) => entry.kind === 'ash-of-war').every((entry) => entry.placementType === 'ash-of-war'),
+  'armor or ash-of-war placement type is invalid',
+);
 
 const legendaryTalismanNames = [
   'Radagon Icon',

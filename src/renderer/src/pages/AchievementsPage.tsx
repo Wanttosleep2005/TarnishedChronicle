@@ -10,7 +10,7 @@ import { findItemPixel } from '../lib/locate-item.ts';
 import type { MasterPixel } from '../lib/map-affine.ts';
 import { useActiveSlot, useSaveContext } from '../lib/save-context.tsx';
 
-export function AchievementsPage() {
+export function AchievementsPage({ onOpenCollection }: { onOpenCollection?: () => void }) {
   const slot = useActiveSlot();
   const { requestMapFocus } = useSaveContext();
   const [steam, setSteam] = useState<SteamAchievementsResult | null>(null);
@@ -67,6 +67,7 @@ export function AchievementsPage() {
       <PageHead
         title="成就与徽章"
         sub={`趣味徽章 ${earned.length}/${badges.length} · 存档推演成就 + Steam 官方成就`}
+        right={onOpenCollection ? <button className="btn small" onClick={onOpenCollection}>{'\u67e5\u770b\u6536\u85cf\u56fe\u9274'}</button> : undefined}
       />
 
       <div className="grid-2">

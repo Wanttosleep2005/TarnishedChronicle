@@ -88,6 +88,14 @@ export interface Sts2Run {
   win?: boolean;
 }
 
+export const STS2_MAX_ASCENSION = 10;
+
+/** 游戏当前正式进阶上限为 A10; mod/旧存档中的更高值只按上限展示。 */
+export function ascensionLevel(value: number | null | undefined): number {
+  if (!Number.isFinite(value)) return 0;
+  return Math.min(STS2_MAX_ASCENSION, Math.max(0, Math.trunc(value as number)));
+}
+
 /** 宽松取字符串 id:兼容 'CARD.X' / {id} / {card:{id}} 三种形态。 */
 export function looseId(value: unknown): string | null {
   if (typeof value === 'string') return value;

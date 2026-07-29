@@ -3,7 +3,8 @@ import { Card, PageHead } from '../components/ui.tsx';
 import { CharacterDot, RunDetail, Sts2Art } from '../components/sts2-widgets.tsx';
 import { formatDateTime } from '../lib/format.ts';
 import { useSts2 } from '../lib/sts2-context.tsx';
-import { bareId, cardName, characterName, formatRunTime, looseId, relicName, runOutcome, type Sts2Run } from '../lib/sts2.ts';
+import { ascensionLevel, bareId, cardName, characterName, formatRunTime, looseId, relicName, runOutcome, type Sts2Run } from '../lib/sts2.ts';
+import { buildReplayGuide, type ReplayGuide } from '../lib/sts2-stats.ts';
 
 type OutcomeFilter = 'all' | 'win' | 'loss' | 'abandon';
 
@@ -68,7 +69,7 @@ function RunCompareCard({
   const head = (run: Sts2Run, t: number) => {
     const who = (run.players ?? []).filter((p) => p?.character).map((p) => characterName(p.character)).join('+');
     const o = runOutcome(run);
-    return `${formatDateTime(t)} · ${who} · A${run.ascension ?? 0} · ${o.label} · ${formatRunTime(run.run_time)}`;
+    return `${formatDateTime(t)} · ${who} · A${ascensionLevel(run.ascension)} · ${o.label} · ${formatRunTime(run.run_time)}`;
   };
   const diff = (kind: 'card' | 'relic') => {
     const ca = mergedCounts(a, kind);
@@ -130,6 +131,7 @@ export function Sts2RunsPage() {
   const [minAscension, setMinAscension] = useState(0);
   const [coopOnly, setCoopOnly] = useState(false);
   const [shown, setShown] = useState(40);
+  const [guidePath, setGuidePath] = useState<string | null>(null);
 
   const characters = useMemo(() => {
     const set = new Set<string>();
@@ -150,12 +152,14 @@ export function Sts2RunsPage() {
       if (character !== '全部角色') {
         if (!(run.players ?? []).some((p) => p?.character && characterName(p.character) === character)) return false;
       }
-      if ((run.ascension ?? 0) < minAscension) return false;
+      if (ascensionLevel(run.ascension) < minAscension) return false;
       if (coopOnly && (run.players?.length ?? 1) < 2) return false;
       if (runsFocus && !runCarries(run, runsFocus.kind, runsFocus.id)) return false;
       return true;
     });
   }, [runs, summaries, outcome, character, minAscension, coopOnly, runsFocus]);
+  const guide = guidePath ? summaries.get(guidePath) : null;
+  const replayGuide: ReplayGuide | null = guide?.win ? buildReplayGuide(guide) : null;
 
   return (
     <div className="page">
@@ -189,7 +193,7 @@ export function Sts2RunsPage() {
             value={minAscension}
             onChange={(e) => setMinAscension(Number(e.target.value))}
           >
-            {[0, 1, 5, 10, 15, 20].map((a) => (
+            {[0, 1, 5, 10].map((a) => (
               <option key={a} value={a}>
                 进阶 ≥ A{a}
               </option>
@@ -233,6 +237,17 @@ export function Sts2RunsPage() {
             />
           );
         })()}
+      {replayGuide && guide && (
+        <Card title="胜局抄作业" hint="按该局实际选择记录生成，优先级不是绝对推荐">
+          <div className="grid-2">
+            <div><div className="equip-slot-label">优先拿</div><div className="tag-cloud">{replayGuide.priorities.map((row) => <span className="pill gold" key={row.id}>{cardName(row.id)} · {Math.round(row.rate * 100)}%</span>)}</div></div>
+            <div><div className="equip-slot-label">可以跳过</div><div className="tag-cloud">{replayGuide.skips.map((row) => <span className="pill" key={row.id}>{cardName(row.id)} · {row.offered} 次未选</span>)}</div></div>
+            <div><div className="equip-slot-label">该局拿过的遗物</div><div className="tag-cloud">{replayGuide.relics.map((id) => <span className="pill" key={id}>{relicName(id)}</span>)}</div></div>
+            <div><div className="equip-slot-label">升级记录</div><div className="tag-cloud">{replayGuide.upgrades.map((id) => <span className="pill" key={id}>{cardName(id)}</span>)}</div></div>
+          </div>
+        </Card>
+      )}
+
       {comparePick.length === 1 && (
         <div className="notice">已选 1 局,再点一局的 ⚖ 即可并排对比。</div>
       )}
@@ -259,7 +274,7 @@ export function Sts2RunsPage() {
                           <CharacterDot key={i} character={p.character} />
                         ))}
                       </span>
-                      <span className="pill gold" style={{ flex: 'none' }}>A{summary.ascension ?? 0}</span>
+                      <span className="pill gold" style={{ flex: 'none' }}>A{ascensionLevel(summary.ascension)}</span>
                       {outcomeInfo && (
                         <span
                           className="pill"
@@ -280,6 +295,17 @@ export function Sts2RunsPage() {
                     <span className="undone" style={{ fontSize: 12 }}>读取中…</span>
                   )}
                   <span className="spacer" />
+                  {summary?.win && (
+                    <button
+                      className={`btn small ${guidePath === meta.path ? 'primary' : ''}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setGuidePath(guidePath === meta.path ? null : meta.path);
+                      }}
+                    >
+                      抄作业
+                    </button>
+                  )}
                   {summary && (
                     <button
                       className={`btn small ${comparePick.includes(meta.path) ? 'primary' : ''}`}

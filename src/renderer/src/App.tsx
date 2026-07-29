@@ -5,8 +5,10 @@ import { SaveProvider, useSaveContext } from './lib/save-context.tsx';
 import { AchievementsPage } from './pages/AchievementsPage.tsx';
 import { BossesPage } from './pages/BossesPage.tsx';
 import { EquipmentPage } from './pages/EquipmentPage.tsx';
+import { CollectionPage } from './pages/CollectionPage.tsx';
 import { GracesPage } from './pages/GracesPage.tsx';
 import { BuildPage } from './pages/BuildPage.tsx';
+import { LoadoutPage } from './pages/LoadoutPage.tsx';
 import { ChatPage } from './pages/ChatPage.tsx';
 import { ComparePage } from './pages/ComparePage.tsx';
 import { MapPage } from './pages/MapPage.tsx';
@@ -30,6 +32,7 @@ import { Ds3ComparePage } from './pages/Ds3ComparePage.tsx';
 import { Ds3ChatPage } from './pages/Ds3ChatPage.tsx';
 import { Ds3AchievementsPage } from './pages/Ds3AchievementsPage.tsx';
 import { Ds3SettingsPage } from './pages/Ds3SettingsPage.tsx';
+import { SoulCareerCard } from './components/SoulCareerCard.tsx';
 
 type GameKey = 'er' | 'sts2' | 'ds3';
 
@@ -39,6 +42,8 @@ type PageKey =
   | 'bosses'
   | 'graces'
   | 'equipment'
+  | 'collections'
+  | 'loadout'
   | 'planner'
   | 'quests'
   | 'achievements'
@@ -54,6 +59,8 @@ const NAV: { key: PageKey; label: string; needsSave: boolean }[] = [
   { key: 'bosses', label: 'Boss 讨伐', needsSave: true },
   { key: 'graces', label: '赐福足迹', needsSave: true },
   { key: 'equipment', label: '装备行囊', needsSave: true },
+  { key: 'collections', label: '收藏图鉴', needsSave: true },
+  { key: 'loadout', label: '配装器', needsSave: true },
   { key: 'planner', label: '洗点模拟', needsSave: true },
   { key: 'quests', label: 'NPC 任务线', needsSave: true },
   { key: 'achievements', label: '成就徽章', needsSave: true },
@@ -182,10 +189,12 @@ function ErShell({ goLauncher }: { goLauncher: () => void }) {
             {page === 'map' && <MapPage />}
             {page === 'bosses' && <BossesPage />}
             {page === 'graces' && <GracesPage />}
-            {page === 'equipment' && <EquipmentPage />}
+            {page === 'equipment' && <EquipmentPage onOpenCollection={() => setPage('collections')} />}
+            {page === 'collections' && <CollectionPage />}
+            {page === 'loadout' && <LoadoutPage />}
             {page === 'planner' && <BuildPage />}
             {page === 'quests' && <QuestsPage />}
-            {page === 'achievements' && <AchievementsPage />}
+            {page === 'achievements' && <AchievementsPage onOpenCollection={() => setPage('collections')} />}
             {page === 'timeline' && <TimelinePage />}
             {page === 'story' && <StoryPage goSettings={() => setPage('settings')} />}
             {page === 'chat' && <ChatPage goSettings={() => setPage('settings')} />}
@@ -289,6 +298,7 @@ function Sts2ShellInner({ goLauncher }: { goLauncher: () => void }) {
             </div>
           ) : !hasRoot && page !== 'settings' ? (
             <div className="empty-hero">
+              {error && <div className="notice" style={{ maxWidth: 560, borderColor: 'var(--crimson)' }}>{error}</div>}
               <div className="glyph">🗼</div>
               <h2>未找到杀戮尖塔 2 存档</h2>
               <p>已扫描 Steam userdata 与 %APPDATA%\SlayTheSpire2。安装并进行一局游戏后再来。</p>
@@ -472,6 +482,7 @@ function Launcher({ onPick }: { onPick: (game: GameKey) => void }) {
           <div className="game-enter">传火 →</div>
         </div>
       </div>
+      <SoulCareerCard />
       <div className="launcher-foot">存档只读 · 永不写入 · 上次的选择会被记住</div>
     </div>
   );

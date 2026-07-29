@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title Tarnished Chronicle v0.3.1
+title Tarnished Chronicle v0.6.0
 
 if not exist "package.json" goto :missing
 
@@ -17,7 +17,7 @@ if defined NEED_INSTALL (
   if errorlevel 1 goto :fail
 )
 
-echo [2/2] Starting v0.3.1 from current source...
+echo [2/2] Starting v0.6.0 from current source...
 call npm run dev
 if errorlevel 1 goto :fail
 exit /b 0

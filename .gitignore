@@ -12,6 +12,7 @@ Thumbs.db
 .idea/
 .claude/
 backups/
+.codex-work/
 shots/
 *.info.json
 

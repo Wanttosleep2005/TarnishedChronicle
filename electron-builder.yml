@@ -5,6 +5,11 @@ directories:
 files:
   - out/**/*
   - package.json
+extraFiles:
+  - from: launcher/TarnishedChronicleLauncher.ps1
+    to: TarnishedChronicleLauncher.ps1
+  - from: launcher/TarnishedChronicleLauncher.bat
+    to: TarnishedChronicleLauncher.bat
 asar: true
 npmRebuild: false
 publish:

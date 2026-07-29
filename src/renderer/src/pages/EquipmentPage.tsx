@@ -45,7 +45,7 @@ const TAB_LABEL: Record<GameTab, string> = Object.fromEntries(
   GAME_TABS.map((t) => [t.key, t.label]),
 ) as Record<GameTab, string>;
 
-export function EquipmentPage() {
+export function EquipmentPage({ onOpenCollection }: { onOpenCollection?: () => void }) {
   const slot = useActiveSlot();
   const [tab, setTab] = useState<TabFilter>('all');
   const [search, setSearch] = useState('');
@@ -80,7 +80,11 @@ export function EquipmentPage() {
 
   return (
     <div className="page">
-      <PageHead title="装备与行囊" sub="当前装备、记忆法术与全部持有物" />
+      <PageHead
+        title="装备与行囊"
+        sub="当前装备、记忆法术与全部持有物"
+        right={onOpenCollection ? <button className="btn small" onClick={onOpenCollection}>{'\u67e5\u770b\u6536\u85cf\u56fe\u9274'}</button> : undefined}
+      />
 
       <Card title="武器" hint={`双手共 ${armaments.length} 件 · 面板按当前属性实时计算`}>
         <div className="equip-grid">

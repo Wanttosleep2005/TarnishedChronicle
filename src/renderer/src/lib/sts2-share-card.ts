@@ -2,6 +2,7 @@
 import { formatDateTime } from './format.ts';
 import {
   actName,
+  ascensionLevel,
   bareId,
   cardName,
   characterName,
@@ -77,7 +78,7 @@ export async function buildSts2RunCard(run: Sts2Run, timestampMs: number): Promi
 
   const floors = (run.map_point_history ?? []).reduce((n, act) => n + (Array.isArray(act) ? act.length : 0), 0);
   const statBits = [
-    `进阶 A${run.ascension ?? 0}`,
+    `进阶 A${ascensionLevel(run.ascension)}`,
     `用时 ${formatRunTime(run.run_time)}`,
     floors > 0 ? `${floors} 层` : null,
     run.seed ? `种子 ${run.seed}` : null,

@@ -24,6 +24,12 @@ export const goodById: ReadonlyMap<number, Good> = new Map(GOODS.map((g) => [g.i
 export const spellById: ReadonlyMap<number, Spell> = new Map(SPELLS.map((s) => [s.id, s]));
 export const aowById: ReadonlyMap<number, AshOfWar> = new Map(ASHES_OF_WAR.map((a) => [a.id, a]));
 const spiritAshIds = new Set(SPIRIT_ASHES.map((s) => s.id));
+const graceByEntityId: ReadonlyMap<number, Grace> = new Map(GRACES.map((grace) => [grace.bonfireEntityId, grace]));
+
+/** 存档记录的是运行时赐福实体 ID，目录使用地图实体 ID，两者通常相差 1000。 */
+export function graceForEntityId(entityId: number): Grace | undefined {
+  return graceByEntityId.get(entityId) ?? graceByEntityId.get(entityId - 1000) ?? graceByEntityId.get(entityId + 1000);
+}
 
 // 七枚大卢恩(GOODS 英文名 → id,持有判定走背包数据,不猜旗标)
 const GREAT_RUNE_EN = [
@@ -159,6 +165,7 @@ export function resolveGaItemId(itemId: number): ResolvedItem {
 export interface EquipSlotEntry extends ResolvedItem {
   slotLabel: string;
   ashOfWar: string | null;
+  ashOfWarId: number | null;
 }
 
 export interface EquipmentView {
@@ -187,12 +194,17 @@ export function deriveEquipment(slot: LeanSlot): EquipmentView {
     return resolveGaItemId(ga.item_id);
   };
 
-  const ashNameFor = (handle: number): string | null => {
+  const ashIdFor = (handle: number): number | null => {
     const gemHandle = gaByHandle.get(handle)?.gem_gaitem_handle ?? 0;
     if (!gemHandle) return null;
     const gemItemId = gaByHandle.get(gemHandle)?.item_id ?? 0;
     if (!gemItemId) return null;
-    const aowId = (gemItemId ^ GA_AOW) >>> 0;
+    return (gemItemId ^ GA_AOW) >>> 0;
+  };
+
+  const ashNameFor = (handle: number): string | null => {
+    const aowId = ashIdFor(handle);
+    if (aowId === null) return null;
     return zhItemNameByKind('aow', aowId) ?? aowById.get(aowId)?.name ?? null;
   };
 
@@ -200,6 +212,7 @@ export function deriveEquipment(slot: LeanSlot): EquipmentView {
     ...resolveHandle(handle),
     slotLabel,
     ashOfWar: handle ? ashNameFor(handle) : null,
+    ashOfWarId: handle ? ashIdFor(handle) : null,
   });
 
   const armaments: EquipSlotEntry[] = [
@@ -214,12 +227,13 @@ export function deriveEquipment(slot: LeanSlot): EquipmentView {
       ['手部', slot.chr_asm2.arms],
       ['腿部', slot.chr_asm2.legs],
     ] as const
-  ).map(([slotLabel, handle]) => ({ ...resolveHandle(handle), slotLabel, ashOfWar: null }));
+  ).map(([slotLabel, handle]) => ({ ...resolveHandle(handle), slotLabel, ashOfWar: null, ashOfWarId: null }));
 
   const talismans: EquipSlotEntry[] = slot.chr_asm2.talismans.map((handle, i) => ({
     ...resolveHandle(handle),
     slotLabel: `护符 ${i + 1}`,
     ashOfWar: null,
+    ashOfWarId: null,
   }));
 
   const arrows: EquipSlotEntry[] = [
@@ -406,6 +420,7 @@ export interface CharacterProfile {
   ownedTalismanIds: Set<number>;
   ownedGoodsIds: Set<number>;
   ownedArmorIds: Set<number>;
+  ownedAshOfWarIds: Set<number>;
   spellsKnown: number;
   spiritAshesOwned: number;
   gesturesUnlocked: number;
@@ -428,23 +443,31 @@ export function deriveProfile(slot: LeanSlot): CharacterProfile {
   const ownedTalismanIds = new Set<number>();
   const ownedGoodsIds = new Set<number>();
   const ownedArmorIds = new Set<number>();
+  const ownedAshOfWarIds = new Set<number>();
   const variantUpgrade = new Map<number, number>();
-  for (const ga of slot.ga_items) {
-    const kind = kindOfGaItemId(ga.item_id);
-    if (kind === 'weapon') {
-      const upgrade = ga.item_id % 100;
-      const noUpgrade = ga.item_id - upgrade;
-      ownedWeaponBaseIds.add(noUpgrade - (noUpgrade % 10000));
-      variantUpgrade.set(noUpgrade, Math.max(variantUpgrade.get(noUpgrade) ?? 0, upgrade));
-    } else if (kind === 'armor') {
-      ownedArmorIds.add((ga.item_id ^ GA_ARMOR) >>> 0);
-    }
-  }
-  const weaponVariants = [...variantUpgrade.entries()].map(([id, upgrade]) => ({ id, upgrade }));
   for (const row of inventory) {
+    if (row.kind === 'weapon') {
+      const baseId = row.paramId - (row.paramId % 10000);
+      ownedWeaponBaseIds.add(baseId);
+      variantUpgrade.set(row.paramId, Math.max(variantUpgrade.get(row.paramId) ?? 0, row.upgrade));
+    }
+    if (row.kind === 'armor') ownedArmorIds.add(row.paramId);
     if (row.kind === 'talisman') ownedTalismanIds.add(row.paramId);
     if (row.kind === 'goods') ownedGoodsIds.add(row.paramId);
+    if (row.kind === 'aow') ownedAshOfWarIds.add(row.paramId);
   }
+  // 某些版本的存档不会把当前装备槽重复写入行囊，装备本身仍应算作已拥有。
+  for (const item of [...equipment.armaments, ...equipment.armor, ...equipment.talismans]) {
+    if (item.kind === 'weapon') {
+      const baseId = item.paramId - (item.paramId % 10000);
+      ownedWeaponBaseIds.add(baseId);
+      variantUpgrade.set(item.paramId, Math.max(variantUpgrade.get(item.paramId) ?? 0, item.upgrade));
+    }
+    if (item.kind === 'armor') ownedArmorIds.add(item.paramId);
+    if (item.kind === 'talisman') ownedTalismanIds.add(item.paramId);
+    if (item.ashOfWarId !== null) ownedAshOfWarIds.add(item.ashOfWarId);
+  }
+  const weaponVariants = [...variantUpgrade.entries()].map(([id, upgrade]) => ({ id, upgrade }));
 
   let spellsKnown = 0;
   let spiritAshesOwned = 0;
@@ -498,6 +521,7 @@ export function deriveProfile(slot: LeanSlot): CharacterProfile {
     ownedTalismanIds,
     ownedGoodsIds,
     ownedArmorIds,
+    ownedAshOfWarIds,
     spellsKnown,
     spiritAshesOwned,
     gesturesUnlocked,

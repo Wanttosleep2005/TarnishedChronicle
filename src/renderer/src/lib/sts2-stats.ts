@@ -97,3 +97,54 @@ export function coopCombos(summaries: ReadonlyMap<string, Sts2Run>): ComboRow[] 
   }
   return [...agg.values()].sort((a, b) => b.games - a.games);
 }
+
+export interface ReplayGuideRow {
+  id: string;
+  offered: number;
+  picked: number;
+  rate: number;
+}
+
+export interface ReplayGuide {
+  priorities: ReplayGuideRow[];
+  skips: ReplayGuideRow[];
+  relics: string[];
+  upgrades: string[];
+}
+
+/** 从胜局的逐层选择记录提炼可复现的取舍顺序，不把缺失字段猜成路线。 */
+export function buildReplayGuide(run: Sts2Run): ReplayGuide {
+  const cards = new Map<string, ReplayGuideRow>();
+  const relics = new Set<string>();
+  const upgrades = new Set<string>();
+  for (const act of run.map_point_history ?? []) {
+    for (const node of act ?? []) {
+      for (const stats of node.player_stats ?? []) {
+        for (const choice of stats.card_choices ?? []) {
+          const id = looseId(choice);
+          if (!id) continue;
+          const key = bareId(id);
+          const row = cards.get(key) ?? { id: key, offered: 0, picked: 0, rate: 0 };
+          row.offered += 1;
+          if (choice.was_picked === true) row.picked += 1;
+          row.rate = row.picked / row.offered;
+          cards.set(key, row);
+        }
+        for (const choice of stats.relic_choices ?? []) {
+          if (choice.was_picked && choice.choice) relics.add(bareId(choice.choice));
+        }
+        for (const card of stats.upgraded_cards ?? []) {
+          const id = looseId(card);
+          if (id) upgrades.add(bareId(id));
+        }
+      }
+    }
+  }
+  const rows = [...cards.values()];
+  return {
+    priorities: rows.filter((row) => row.picked > 0).sort((a, b) => b.rate - a.rate || b.picked - a.picked).slice(0, 12),
+    skips: rows.filter((row) => row.offered >= 2 && row.picked === 0).sort((a, b) => b.offered - a.offered).slice(0, 12),
+    relics: [...relics].slice(0, 12),
+    upgrades: [...upgrades].slice(0, 12),
+  };
+}

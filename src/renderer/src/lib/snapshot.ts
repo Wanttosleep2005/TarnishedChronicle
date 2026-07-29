@@ -18,6 +18,8 @@ export function buildSnapshot(save: LeanSave, mtimeMs: number): HistorySnapshot 
         gracesLit: GRACES.reduce((n, g) => n + (isFlagSet(flags, g.flagId) ? 1 : 0), 0),
         bossFlags: BOSSES.filter((b) => isFlagSet(flags, b.defeatFlagId)).map((b) => b.defeatFlagId),
         graceFlags: GRACES.filter((g) => isFlagSet(flags, g.flagId)).map((g) => g.flagId),
+        mapId: [...slot.map_id] as [number, number, number, number],
+        restedGraceEntityId: slot.last_rested_grace,
         ...(slot.blood_stain.runes > 0
           ? {
               blood: {

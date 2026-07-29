@@ -1,7 +1,6 @@
 /**
  * 从官方文本生成 英文名→官方简中名 映射(NpcName / PlaceName):
- * - 本体:_reference/er-msg(游戏 msg 目录的 JSON dump,engus + zhocn,id 对齐)
- * - DLC(黄金树幽影):本机游戏目录 mod/msg 下的 item_dlc02.msgbnd.dcx,
+ * - 本体与 DLC:本机游戏目录 msg/{engus,zhocn} 下的原版 msgbnd.dcx。
  *   用游戏自带 oo2core_6_win64.dll(koffi FFI)解 Kraken,再走 compass 的 BND4/FMG 解析器。
  * 输出:src/renderer/src/data/zh/official-names.generated.ts
  * 运行:npx tsx scripts/extract-official-zh.ts
@@ -14,7 +13,6 @@ import { parseBnd4 } from '../_reference/elden-ring-compass/packages/extractor/s
 import { parseFmg } from '../_reference/elden-ring-compass/packages/extractor/src/formats/fmg.ts';
 
 const ROOT = join(import.meta.dirname, '..');
-const ER_MSG = join(ROOT, '_reference/er-msg');
 const GAME = 'G:\\SteamLibrary\\steamapps\\common\\ELDEN RING\\Game';
 const OODLE_DLL = join(GAME, 'oo2core_6_win64.dll');
 const OUT = join(ROOT, 'src/renderer/src/data/zh/official-names.generated.ts');
@@ -64,18 +62,21 @@ function readMsgBnd(path: string): Map<string, Map<number, string>> {
   return result;
 }
 
-// ———— er-msg JSON dump → { fmg名: Record<id, string|null> } ————
-type MsgJson = Record<string, Record<string, string | null>>;
-function readMsgJson(lang: 'engus' | 'zhocn', bundle: 'item' | 'menu'): Map<string, Map<number, string>> {
-  const json = JSON.parse(readFileSync(join(ER_MSG, lang, `${bundle}.msgbnd.dcx.json`), 'utf-8')) as MsgJson;
+function readMsgBundle(
+  lang: 'engus' | 'zhocn',
+  bundle: 'item' | 'menu',
+  suffix = '',
+): Map<string, Map<number, string>> {
+  const path = join(GAME, 'msg', lang, `${bundle}${suffix}.msgbnd.dcx`);
+  return existsSync(path) ? readMsgBnd(path) : new Map<string, Map<number, string>>();
+}
+
+function mergeMsgBundles(...bundles: Map<string, Map<number, string>>[]): Map<string, Map<number, string>> {
   const result = new Map<string, Map<number, string>>();
-  for (const [key, table] of Object.entries(json)) {
-    const file = key.slice(key.lastIndexOf('\\') + 1).replace(/\.fmg$/, '.fmg');
-    const map = new Map<number, string>();
-    for (const [id, text] of Object.entries(table)) {
-      if (text && text !== '%null%') map.set(Number(id), text);
+  for (const bundle of bundles) {
+    for (const [file, entries] of bundle) {
+      if (!result.has(file)) result.set(file, entries);
     }
-    result.set(file, map);
   }
   return result;
 }
@@ -116,21 +117,17 @@ function joinById(
 }
 
 // ———— 收集 ————
-console.log('读取本体官方文本(er-msg dump)…');
-const baseItemEn = readMsgJson('engus', 'item');
-const baseItemZh = readMsgJson('zhocn', 'item');
-const baseMenuEn = readMsgJson('engus', 'menu');
-const baseMenuZh = readMsgJson('zhocn', 'menu');
+console.log('读取原版 Game/msg 官方文本…');
+const baseItemEn = readMsgBundle('engus', 'item');
+const baseItemZh = readMsgBundle('zhocn', 'item');
+const baseMenuEn = readMsgBundle('engus', 'menu');
+const baseMenuZh = readMsgBundle('zhocn', 'menu');
 
-console.log('解包 DLC 官方文本(item_dlc02.msgbnd.dcx,Oodle)…');
-const dlcEnPath = join(GAME, 'mod\\msg\\engus\\item_dlc02.msgbnd.dcx');
-const dlcZhPath = join(GAME, 'mod\\msg\\zhocn\\item_dlc02.msgbnd.dcx');
-const dlcMenuEnPath = join(GAME, 'mod\\msg\\engus\\menu_dlc02.msgbnd.dcx');
-const dlcMenuZhPath = join(GAME, 'mod\\msg\\zhocn\\menu_dlc02.msgbnd.dcx');
-const dlcItemEn = existsSync(dlcEnPath) ? readMsgBnd(dlcEnPath) : new Map<string, Map<number, string>>();
-const dlcItemZh = existsSync(dlcZhPath) ? readMsgBnd(dlcZhPath) : new Map<string, Map<number, string>>();
-const dlcMenuEn = existsSync(dlcMenuEnPath) ? readMsgBnd(dlcMenuEnPath) : new Map<string, Map<number, string>>();
-const dlcMenuZh = existsSync(dlcMenuZhPath) ? readMsgBnd(dlcMenuZhPath) : new Map<string, Map<number, string>>();
+console.log('解包原版 DLC 官方文本(item/menu_dlc01 + dlc02,Oodle)…');
+const dlcItemEn = mergeMsgBundles(readMsgBundle('engus', 'item', '_dlc01'), readMsgBundle('engus', 'item', '_dlc02'));
+const dlcItemZh = mergeMsgBundles(readMsgBundle('zhocn', 'item', '_dlc01'), readMsgBundle('zhocn', 'item', '_dlc02'));
+const dlcMenuEn = mergeMsgBundles(readMsgBundle('engus', 'menu', '_dlc01'), readMsgBundle('engus', 'menu', '_dlc02'));
+const dlcMenuZh = mergeMsgBundles(readMsgBundle('zhocn', 'menu', '_dlc01'), readMsgBundle('zhocn', 'menu', '_dlc02'));
 
 console.log('DLC item 包内 FMG:', [...dlcItemEn.keys()].join(', ') || '(无)');
 
@@ -149,6 +146,7 @@ const PLACE = joinById(
   [
     { en: pick(baseItemEn, 'PlaceName.fmg'), zh: pick(baseItemZh, 'PlaceName.fmg') },
     { en: pick(baseMenuEn, 'GR_MenuText.fmg'), zh: pick(baseMenuZh, 'GR_MenuText.fmg') },
+    { en: pick(dlcMenuEn, 'GR_MenuText_dlc01.fmg'), zh: pick(dlcMenuZh, 'GR_MenuText_dlc01.fmg') },
     { en: pick(dlcItemEn, 'PlaceName_dlc02.fmg'), zh: pick(dlcItemZh, 'PlaceName_dlc02.fmg') },
     { en: pick(dlcItemEn, 'PlaceName_dlc01.fmg'), zh: pick(dlcItemZh, 'PlaceName_dlc01.fmg') },
     { en: pick(dlcMenuEn, 'GR_MenuText_dlc02.fmg'), zh: pick(dlcMenuZh, 'GR_MenuText_dlc02.fmg') },
@@ -170,7 +168,7 @@ const sortRecord = (r: Record<string, string>) =>
   Object.fromEntries(Object.entries(r).sort((a, b) => a[0].localeCompare(b[0])));
 
 const banner = `// @generated by scripts/extract-official-zh.ts — 请勿手改。
-// 来源:游戏官方文本(本体 msg dump + 本机游戏目录 DLC msgbnd,zhoCN)。
+// 来源:原版游戏 Game/msg/{engus,zhocn} msgbnd.dcx(Smithbox Text Editor 对应文本源)。
 `;
 const body =
   banner +
@@ -202,7 +200,7 @@ function mergeZhById(target: Map<number, string>, source: Map<number, string> | 
 const itemsByCategory = new Map<string, Map<number, string>>();
 for (const [fmgBase, category] of Object.entries(ITEM_FMG_TO_CATEGORY)) {
   const merged = new Map<number, string>();
-  // 顺序:DLC02 > DLC01 > DLC包内基础表 > 本体 dump(先到先得,新内容优先)
+  // 顺序:DLC02 > DLC01 > DLC包内基础表 > 本体(先到先得,新内容优先)
   mergeZhById(merged, pick(dlcItemZh, `${fmgBase}_dlc02.fmg`));
   mergeZhById(merged, pick(dlcItemZh, `${fmgBase}_dlc01.fmg`));
   mergeZhById(merged, pick(dlcItemZh, `${fmgBase}.fmg`));

@@ -6,6 +6,7 @@ import { formatCompact, formatDateTime } from '../lib/format.ts';
 import { useSaveContext } from '../lib/save-context.tsx';
 import { buildEvents } from '../lib/timeline.ts';
 import { deathArchaeology } from '../lib/worldmap.ts';
+import { analyzeFarming, detectJourneyCycles, type TimedSlotSnapshot } from '../lib/timeline-insights.ts';
 
 function GrowthCharts({ timed }: { timed: { t: number; s: SlotSnapshot }[] }) {
   const mk = (pick: (s: SlotSnapshot) => number, unit: string) =>
@@ -51,7 +52,7 @@ export function TimelinePage() {
 
   const currentName = save?.slots[slotIndex]?.player_game_data.character_name || '无名褪色者';
 
-  const timed = useMemo(() => {
+  const timed = useMemo<TimedSlotSnapshot[]>(() => {
     if (!history) return [] as { t: number; s: SlotSnapshot }[];
     return history
       .map((h) => ({ t: h.t, s: h.slots[slotIndex] }))
@@ -61,6 +62,8 @@ export function TimelinePage() {
 
   const events = useMemo(() => (history ? buildEvents(history, slotIndex) : []), [history, slotIndex]);
   const deathSpots = useMemo(() => (history ? deathArchaeology(history, slotIndex) : []), [history, slotIndex]);
+  const farming = useMemo(() => analyzeFarming(timed), [timed]);
+  const journeyCycles = useMemo(() => detectJourneyCycles(timed), [timed]);
 
   if (!save) return null;
   const latest = points[points.length - 1];
@@ -99,6 +102,49 @@ export function TimelinePage() {
           <div className="stat"><div className="stat-label">累计卢恩</div><div className="stat-value">{formatCompact(latest.runesMemory)}</div></div>
         </div>
       )}
+
+      <div className="grid-2">
+        <Card title="卢恩 Farming 效率" hint="根据存档快照中的卢恩存量增量和时间间隔估算">
+          {farming.routes.length === 0 ? (
+            <div className="undone">还没有足够的连续快照。保存几次后，应用会按最后休息赐福归类路线。</div>
+          ) : (
+            <>
+              <div className="stat-grid compact-stats">
+                <div className="stat"><div className="stat-label">最高效率</div><div className="stat-value">{formatCompact(farming.routes[0].perMinute)}<small> / 分钟</small></div></div>
+                <div className="stat"><div className="stat-label">识别路线</div><div className="stat-value">{farming.routes.length}</div></div>
+              </div>
+              <table className="tbl">
+                <thead><tr><th>路线</th><th className="num">卢恩增量</th><th className="num">效率</th><th className="num">异常段</th></tr></thead>
+                <tbody>{farming.routes.slice(0, 6).map((route) => <tr key={route.route}>
+                  <td>{route.route}</td>
+                  <td className="num">{formatCompact(route.runeGain)}</td>
+                  <td className="num" style={{ color: 'var(--gold-2)' }}>{formatCompact(route.perMinute)} / 分钟</td>
+                  <td className="num" style={{ color: route.spikes > 0 ? 'var(--moss)' : 'var(--faint)' }}>{route.spikes}</td>
+                </tr>)}</tbody>
+              </table>
+              <div className="chart-strip">
+                {farming.intervals.slice(0, 18).reverse().map((point) => <span key={point.t} title={`${point.route} +${formatCompact(point.runeGain)}`} style={{ height: `${Math.max(8, Math.min(100, point.perMinute / Math.max(farming.routes[0].perMinute, 1) * 100))}%`, background: point.anomalous ? 'var(--moss)' : 'var(--gold-dim)' }} />)}
+              </div>
+            </>
+          )}
+        </Card>
+
+        <Card title="多周目对比" hint="以结局 Boss 击杀作为周目边界">
+          {journeyCycles.length < 2 ? (
+            <div className="undone">当前快照还没有检测到结局 Boss 后的新周目。继续保存存档后会自动切片。</div>
+          ) : (
+            <table className="tbl">
+              <thead><tr><th>周目</th><th className="num">时长</th><th className="num">死亡</th><th>状态</th></tr></thead>
+              <tbody>{journeyCycles.map((cycle) => <tr key={cycle.cycle}>
+                <td>NG{cycle.cycle === 1 ? '' : `+${cycle.cycle - 1}`}</td>
+                <td className="num">{cycle.durationMinutes < 60 ? `${Math.round(cycle.durationMinutes)} 分钟` : `${(cycle.durationMinutes / 60).toFixed(1)} 小时`}</td>
+                <td className="num">{cycle.deaths}</td>
+                <td>{cycle.completed ? '已击败结局 Boss' : '进行中'}{cycle.bosses.length > 0 && <span className="desc"> · Boss {cycle.bosses.length}</span>}</td>
+              </tr>)}</tbody>
+            </table>
+          )}
+        </Card>
+      </div>
 
       {timed.length >= 2 && (
         <Card title="时光机" hint="拖动滑块回到任意快照,还能在地图上看当时的进度">

@@ -5,7 +5,7 @@ import { CharacterDot, Sts2Art } from '../components/sts2-widgets.tsx';
 import { STS2_ZH } from '../data/zh/sts2-zh.generated.ts';
 import { formatDateTime, formatPlaytime } from '../lib/format.ts';
 import { useSts2 } from '../lib/sts2-context.tsx';
-import { bareId, cardName, characterName, encounterName, formatRunTime, relicName, runOutcome, sts2Zh, type Sts2CharacterStat } from '../lib/sts2.ts';
+import { ascensionLevel, bareId, cardName, characterName, encounterName, formatRunTime, relicName, runOutcome, sts2Zh, type Sts2CharacterStat } from '../lib/sts2.ts';
 import { cardPickRates, coopCombos, killerCounts, relicWinRates } from '../lib/sts2-stats.ts';
 
 export function Sts2OverviewPage() {
@@ -42,7 +42,7 @@ export function Sts2OverviewPage() {
   const ascensionBars = useMemo(() => {
     const buckets = new Map<number, { wins: number; losses: number }>();
     for (const run of summaries.values()) {
-      const a = run.ascension ?? 0;
+      const a = ascensionLevel(run.ascension);
       const b = buckets.get(a) ?? { wins: 0, losses: 0 };
       if (run.win) b.wins += 1;
       else b.losses += 1;
@@ -105,7 +105,7 @@ export function Sts2OverviewPage() {
       case 'wins': return wins;
       case 'losses': return losses;
       case 'rate': return wins + losses > 0 ? wins / (wins + losses) : 0;
-      case 'maxA': return c.max_ascension ?? 0;
+      case 'maxA': return ascensionLevel(c.max_ascension);
       case 'streak': return c.best_win_streak ?? 0;
       case 'playtime': return c.playtime ?? 0;
       default: return wins + losses;
@@ -222,7 +222,7 @@ export function Sts2OverviewPage() {
                         <td className="num done">{c.total_wins ?? 0}</td>
                         <td className="num" style={{ color: 'var(--crimson)' }}>{c.total_losses ?? 0}</td>
                         <td className="num">{total > 0 ? `${Math.round(((c.total_wins ?? 0) / total) * 100)}%` : '—'}</td>
-                        <td className="num" style={{ color: 'var(--gold-2)' }}>A{c.max_ascension ?? 0}</td>
+                        <td className="num" style={{ color: 'var(--gold-2)' }}>A{ascensionLevel(c.max_ascension)}</td>
                         <td className="num">{c.best_win_streak ?? 0}</td>
                         <td className="num">{formatRunTime(c.fastest_win_time)}</td>
                         <td className="num" style={{ color: 'var(--muted)' }}>{formatPlaytime(c.playtime ?? 0)}</td>

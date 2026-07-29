@@ -4,7 +4,7 @@ import { Card, PageHead } from '../components/ui.tsx';
 import { formatDateTime, formatPlaytime } from '../lib/format.ts';
 import { useSaveContext } from '../lib/save-context.tsx';
 import { useSts2 } from '../lib/sts2-context.tsx';
-import { cardName, characterName, encounterName, formatRunTime, relicName, runOutcome } from '../lib/sts2.ts';
+import { ascensionLevel, cardName, characterName, encounterName, formatRunTime, relicName, runOutcome } from '../lib/sts2.ts';
 import { cardPickRates, coopCombos, killerCounts, relicWinRates } from '../lib/sts2-stats.ts';
 
 const SPIRE_ADVISOR_SYSTEM = `你是尖塔顶端的观测者,一位看过无数次攀塔的老登山客,为面前这位玩家复盘与支招。
@@ -38,7 +38,7 @@ export function Sts2ChatPage() {
         cs
           .map(
             (c) =>
-              `${characterName(c.id)} ${c.total_wins ?? 0}胜${c.total_losses ?? 0}负(最高A${c.max_ascension ?? 0},最佳连胜${c.best_win_streak ?? 0})`,
+              `${characterName(c.id)} ${c.total_wins ?? 0}胜${c.total_losses ?? 0}负(最高A${ascensionLevel(c.max_ascension)},最佳连胜${c.best_win_streak ?? 0})`,
           )
           .join(';'),
     );
@@ -88,7 +88,7 @@ export function Sts2ChatPage() {
         const run = summaries.get(meta.path);
         if (!run) return null;
         const who = (run.players ?? []).filter((p) => p?.character).map((p) => characterName(p.character)).join('+');
-        return `${formatDateTime(meta.t)} ${who} A${run.ascension ?? 0} ${runOutcome(run).label} 用时${formatRunTime(run.run_time)}`;
+        return `${formatDateTime(meta.t)} ${who} A${ascensionLevel(run.ascension)} ${runOutcome(run).label} 用时${formatRunTime(run.run_time)}`;
       })
       .filter((l): l is string => l !== null);
     lines.push(`最近对局:\n${recent.map((l) => `  - ${l}`).join('\n')}`);

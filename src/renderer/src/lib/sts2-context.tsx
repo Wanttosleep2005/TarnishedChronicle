@@ -35,10 +35,19 @@ export function Sts2Provider({ children }: { children: ReactNode }) {
   const [runsFocus, setRunsFocus] = useState<Sts2RunsFocus | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     void window.api.sts2Detect().then((detected) => {
+      if (cancelled) return;
       setRoots(detected);
       if (detected.length > 0) setRootPath(detected[0].path);
+    }).catch((cause) => {
+      if (cancelled) return;
+      setRoots([]);
+      setError(`STS2 save scan failed: ${cause instanceof Error ? cause.message : String(cause)}`);
     });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const summariesRef = useRef<ReadonlyMap<string, Sts2Run>>(new Map());
@@ -59,48 +68,52 @@ export function Sts2Provider({ children }: { children: ReactNode }) {
     }
     setError(null);
     void (async () => {
-      const prog = await window.api.sts2Progress(rootPath);
-      if (cancelled) return;
-      if (prog.ok) {
-        try {
-          setProgress(parseSts2Progress(prog.json));
-        } catch (e) {
-          setError(`progress.save 解析失败:${e instanceof Error ? e.message : String(e)}`);
-        }
-      } else setError(prog.message);
-
-      const list = await window.api.sts2Runs(rootPath);
-      if (cancelled) return;
-      setRuns(list);
-
-      // 后台加载对局摘要;刷新时已加载的局直接复用,只补新增的
-      const acc = new Map<string, Sts2Run>();
-      if (sameRoot) {
-        for (const meta of list) {
-          const prev = summariesRef.current.get(meta.path);
-          if (prev) acc.set(meta.path, prev);
-        }
-      }
-      const pending = list.filter((meta) => !acc.has(meta.path));
-      setSummaries(new Map(acc));
-      setLoadedCount(acc.size);
-      for (let i = 0; i < pending.length; i += 10) {
-        const batch = pending.slice(i, i + 10);
-        await Promise.all(
-          batch.map(async (meta) => {
-            const result = await window.api.sts2Run(meta.path);
-            if (result.ok) {
-              try {
-                acc.set(meta.path, parseSts2Run(result.json));
-              } catch {
-                // 单局损坏跳过
-              }
-            }
-          }),
-        );
+      try {
+        const prog = await window.api.sts2Progress(rootPath);
         if (cancelled) return;
+        if (prog.ok) {
+          try {
+            setProgress(parseSts2Progress(prog.json));
+          } catch (e) {
+            setError(`progress.save 解析失败:${e instanceof Error ? e.message : String(e)}`);
+          }
+        } else setError(prog.message);
+
+        const list = await window.api.sts2Runs(rootPath);
+        if (cancelled) return;
+        setRuns(list);
+
+        // 后台加载对局摘要;刷新时已加载的局直接复用,只补新增的
+        const acc = new Map<string, Sts2Run>();
+        if (sameRoot) {
+          for (const meta of list) {
+            const prev = summariesRef.current.get(meta.path);
+            if (prev) acc.set(meta.path, prev);
+          }
+        }
+        const pending = list.filter((meta) => !acc.has(meta.path));
         setSummaries(new Map(acc));
         setLoadedCount(acc.size);
+        for (let i = 0; i < pending.length; i += 10) {
+          const batch = pending.slice(i, i + 10);
+          await Promise.all(
+            batch.map(async (meta) => {
+              const result = await window.api.sts2Run(meta.path);
+              if (result.ok) {
+                try {
+                  acc.set(meta.path, parseSts2Run(result.json));
+                } catch {
+                  // 单局损坏跳过
+                }
+              }
+            }),
+          );
+          if (cancelled) return;
+          setSummaries(new Map(acc));
+          setLoadedCount(acc.size);
+        }
+      } catch (cause) {
+        if (!cancelled) setError(`STS2 save read failed: ${cause instanceof Error ? cause.message : String(cause)}`);
       }
     })();
     return () => {
@@ -111,7 +124,9 @@ export function Sts2Provider({ children }: { children: ReactNode }) {
   // 实时监听:游戏写盘(打完一局/进度变化)后自动刷新
   useEffect(() => {
     if (!rootPath) return;
-    void window.api.sts2Watch(rootPath);
+    void window.api.sts2Watch(rootPath).catch((cause) => {
+      setError(`STS2 auto refresh failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+    });
     const off = window.api.onSts2Changed(() => setReloadKey((k) => k + 1));
     return () => {
       off();

@@ -52,6 +52,20 @@ export const NAV_ICONS: Record<string, () => ReactNode> = {
       <path d="M12 7v10" />
     </Svg>
   ),
+  collections: () => (
+    <Svg>
+      <path d="M5 4h14v16H5z" />
+      <path d="M8 8h8M8 12h5M8 16h8" />
+      <path d="M16 15l1.5 1.5L20 14" />
+    </Svg>
+  ),
+  loadout: () => (
+    <Svg>
+      <path d="M5 4h14v16H5z" />
+      <path d="M8 8h8M8 12h5M8 16h8" />
+      <path d="M16 11l3 3-3 3" />
+    </Svg>
+  ),
   quests: () => (
     <Svg>
       <circle cx="12" cy="12" r="9" />

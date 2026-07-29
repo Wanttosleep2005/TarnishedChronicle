@@ -1,15 +1,12 @@
 import { useMemo, useState } from 'react';
-import { GRACES } from '../data/generated/graces.ts';
 import { REGIONS } from '../data/generated/regions.ts';
 import { displayPlace, ZH_ARCHETYPE, ZH_GIFT } from '../data/zh/translations.ts';
 import { Card, PageHead, ProgressLine, Stat } from '../components/ui.tsx';
 import { deriveBadges } from '../lib/badges.ts';
-import { deriveProfile, type CharacterProfile } from '../lib/derive.ts';
+import { deriveProfile, graceForEntityId, type CharacterProfile } from '../lib/derive.ts';
 import { formatCompact, formatNumber, formatPlaytime } from '../lib/format.ts';
 import { useActiveSlot, useSaveContext } from '../lib/save-context.tsx';
 import { drawShareCard, type CardTheme } from '../lib/share-card.ts';
-
-const graceByEntityId = new Map(GRACES.map((g) => [g.bonfireEntityId, g]));
 
 const ATTRS: { key: 'vig' | 'mnd' | 'end' | 'str' | 'dex' | 'int' | 'fai' | 'arc'; label: string }[] = [
   { key: 'vig', label: '生命力' },
@@ -76,7 +73,7 @@ export function OverviewPage() {
   };
 
   const p = slot.player_game_data;
-  const lastGrace = graceByEntityId.get(slot.last_rested_grace);
+  const lastGrace = graceForEntityId(slot.last_rested_grace) ?? graceForEntityId(slot.spawn_point_entity_id);
   const worldTime = slot.world_time;
 
   return (
