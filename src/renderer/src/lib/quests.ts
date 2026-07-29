@@ -26,6 +26,7 @@ interface QuestStageDef {
   objective: string;
   graceEn?: string;
   reachedBy?: QuestPredicate;
+  rewards?: readonly QuestReward[];
   terminal?: 'done' | 'interrupted';
 }
 
@@ -37,6 +38,20 @@ interface QuestDef {
   stages: readonly QuestStageDef[];
 }
 
+export type QuestRewardKind = 'weapon' | 'talisman' | 'spell' | 'incantation' | 'ash' | 'armor' | 'key-item' | 'gesture' | 'upgrade';
+
+export interface QuestReward {
+  name: string;
+  kind: QuestRewardKind;
+  branch?: string;
+}
+
+interface QuestEnrichment {
+  related?: readonly string[];
+  warnings?: readonly string[];
+  rewardsByStage?: Readonly<Record<number, readonly QuestReward[]>>;
+}
+
 export type QuestStatus = 'done' | 'ongoing' | 'unstarted' | 'interrupted';
 export type QuestStageState = 'done' | 'current' | 'next' | 'later';
 
@@ -46,9 +61,11 @@ export interface QuestStageView {
   objective: string;
   state: QuestStageState;
   mapGraceFlagId: number | null;
+  rewards: readonly QuestReward[];
 }
 
 export interface QuestView {
+  id: string;
   npc: string;
   dlc: boolean;
   summary: string;
@@ -57,6 +74,8 @@ export interface QuestView {
   current: QuestStageView;
   next: QuestStageView | null;
   stages: readonly QuestStageView[];
+  related: readonly { id: string; npc: string }[];
+  warnings: readonly string[];
 }
 
 const QUESTS: readonly QuestDef[] = [
@@ -199,8 +218,8 @@ const QUESTS: readonly QuestDef[] = [
     stages: [
       { region: '史东薇尔城', location: '教堂', objective: '在城内教堂找到罗杰尔，并调查城底的巨大面孔。', graceEn: 'Rampart Tower' },
       { region: '圆桌厅堂', location: '露台', objective: '击败接肢葛瑞克后与罗杰尔讨论死根。', reachedBy: { all: [{ kind: 'boss', en: 'Godrick the Grafted' }] } },
-      { region: '湖之利耶尼亚', location: '菈妮魔法师塔', objective: '把黑刀烙印交给罗杰尔，并追查菈妮的线索。', graceEn: "Ranni's Rise", reachedBy: { all: [{ kind: 'goods', en: 'Black Knifeprint' }] } },
-      { region: '圆桌厅堂', location: '露台', objective: '罗杰尔已经长眠。', reachedBy: { all: [{ kind: 'goods', en: "Rogier's Bell Bearing" }] }, terminal: 'done' },
+      { region: '圆桌厅堂', location: '露台', objective: '把黑刀烙印交给罗杰尔，听他说明黑刀与菈妮的线索。', reachedBy: { all: [{ kind: 'goods', en: 'Black Knifeprint' }] } },
+      { region: '湖之利耶尼亚', location: '菈妮魔法师塔与圆桌厅堂', objective: '接受菈妮的委托后回圆桌厅堂，与罗杰尔完成最后交谈。', graceEn: "Ranni's Rise", reachedBy: { all: [{ kind: 'goods', en: "Rogier's Bell Bearing" }] }, terminal: 'done' },
     ],
   },
   {
@@ -303,7 +322,8 @@ const QUESTS: readonly QuestDef[] = [
     stages: [
       { region: '湖之利耶尼亚', location: '白金村与湖旁结晶洞窟', objective: '取得秘密符节右半部，再穿过洞窟寻找勒缇娜。', graceEn: 'Village of the Albinaurics' },
       { region: '湖之利耶尼亚', location: '眠狼的破屋', objective: '向勒缇娜展示符节并接受她的同行请求。', graceEn: "Slumbering Wolf's Shack", reachedBy: { all: [{ kind: 'goods', en: 'Haligtree Secret Medallion (Right)' }] } },
-      { region: '化圣雪原', location: '离教废屋', objective: '带勒缇娜前往巨大的白金之子女性身旁。', graceEn: 'Apostate Derelict', reachedBy: { all: [{ kind: 'ash', en: 'Latenna the Albinauric' }] } },
+      { region: '化圣雪原', location: '离教废屋', objective: '在巨大的白金之子女性身旁召唤勒缇娜，完成她的托付。', graceEn: 'Apostate Derelict', reachedBy: { all: [{ kind: 'ash', en: 'Latenna the Albinauric' }] } },
+      { region: '化圣雪原', location: '离教废屋', objective: '领取勒缇娜留下的古龙岩失色锻造石。', graceEn: 'Apostate Derelict', reachedBy: { all: [{ kind: 'goods', en: 'Somber Ancient Dragon Smithing Stone' }] }, terminal: 'done' },
     ],
   },
   {
