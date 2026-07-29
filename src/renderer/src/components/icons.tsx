@@ -105,6 +105,12 @@ export const NAV_ICONS: Record<string, () => ReactNode> = {
       <circle cx="7" cy="18" r="2.2" fill="currentColor" stroke="none" />
     </Svg>
   ),
+  calculator: () => (
+    <Svg>
+      <rect x="4" y="3" width="16" height="18" rx="1" />
+      <path d="M8 7h8M8 12h2M14 12h2M8 16h2M14 16h2" />
+    </Svg>
+  ),
   chat: () => (
     <Svg>
       <path d="M4 5h16v11H9l-5 4z" />

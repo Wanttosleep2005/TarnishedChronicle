@@ -7,6 +7,9 @@ export interface DamageBreakdown {
   attack: number;
   defense: number;
   taken: number;
+  takenType: string;
+  partIndex: number;
+  actionMultiplier: number;
   damage: number;
 }
 
@@ -18,8 +21,35 @@ export interface EnemyHitEstimate {
   breakdown: DamageBreakdown[];
 }
 
-function enemyDefense(enemy: EnemyCombatRow, type: string): number {
-  return enemy.defense[type] ?? (type === 'holy' ? enemy.defense.dark : null) ?? 0;
+const PHYSICAL_TAKEN_TYPES: Readonly<Record<string, string>> = {
+  普通: 'standard',
+  斩击: 'slash',
+  打击: 'strike',
+  突刺: 'thrust',
+};
+
+export function effectiveEnemyDefense(enemy: EnemyCombatRow, type: string): number {
+  const base = enemy.defense[type] ?? 0;
+  const scale = enemy.defenseScale[type] ?? 1;
+  return base * scale;
+}
+
+function damageTakenType(action: WeaponCombatAction, damageType: string, partIndex: number): string {
+  if (damageType !== 'physical') return damageType;
+  const physicalType = action.physicalAttackTypes[partIndex] ?? action.physicalAttackTypes[0];
+  return PHYSICAL_TAKEN_TYPES[physicalType] ?? 'standard';
+}
+
+// Elden Ring's defense curve, cross-checked against the v1.16 workbook breakpoints.
+export function damageAfterDefense(attack: number, defense: number): number {
+  if (attack <= 0) return 0;
+  if (defense <= 0) return attack * 0.9;
+  const ratio = attack / defense;
+  if (ratio < 0.125) return attack * 0.1;
+  if (ratio < 1) return attack * ((19.2 / 49) * (ratio - 0.125) ** 2 + 0.1);
+  if (ratio < 2.5) return attack * ((-0.4 / 3) * (ratio - 2.5) ** 2 + 0.7);
+  if (ratio < 8) return attack * ((-0.8 / 121) * (ratio - 8) ** 2 + 0.9);
+  return attack * 0.9;
 }
 
 export function estimateEnemyHit(
@@ -27,25 +57,37 @@ export function estimateEnemyHit(
   attack: AttackRating,
   action: WeaponCombatAction,
 ): EnemyHitEstimate {
-  const actionMultiplier = (action.damageMultiplier ?? 100) / 100;
-  const breakdown = DAMAGE_TYPES.map((type) => {
+  const actionMultipliers = action.damageMultiplierParts.length > 0
+    ? action.damageMultiplierParts.map((value) => value / 100)
+    : [(action.damageMultiplier ?? 100) / 100];
+  const breakdown = DAMAGE_TYPES.flatMap((type) => {
     const attackValue = attack.damage[type] ?? 0;
-    const defense = enemyDefense(enemy, type);
-    const taken = enemy.damageTaken[type] ?? (type === 'holy' ? enemy.damageTaken.dark : null) ?? 1;
-    return {
-      type,
-      attack: attackValue,
-      defense,
-      taken,
-      damage: Math.max(0, attackValue * actionMultiplier - defense) * taken,
-    };
-  }).filter((row) => row.attack > 0);
+    if (attackValue <= 0) return [];
+    const defense = effectiveEnemyDefense(enemy, type);
+    return actionMultipliers.map((actionMultiplier, partIndex) => {
+      const takenType = damageTakenType(action, type, partIndex);
+      const taken = enemy.damageTaken[takenType] ?? 1;
+      const scaledAttack = attackValue * actionMultiplier;
+      return {
+        type,
+        attack: attackValue,
+        defense,
+        taken,
+        takenType,
+        partIndex,
+        actionMultiplier,
+        damage: damageAfterDefense(scaledAttack, defense) * taken,
+      };
+    });
+  });
   const damage = breakdown.reduce((sum, row) => sum + row.damage, 0);
   return {
     damage,
-    hitsToKill: enemy.hp && damage > 0 ? Math.ceil(enemy.hp / damage) : null,
+    hitsToKill: enemy.hp !== null && enemy.hp > 0 && damage > 0 ? Math.ceil(enemy.hp / damage) : null,
     poiseDamage: action.pvePoise,
-    poiseHits: enemy.saDurability && action.pvePoise ? Math.ceil(enemy.saDurability / action.pvePoise) : null,
+    poiseHits: enemy.saDurability !== null && enemy.saDurability > 0 && action.pvePoise
+      ? Math.ceil(enemy.saDurability / action.pvePoise)
+      : null,
     breakdown,
   };
 }

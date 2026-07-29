@@ -8,6 +8,7 @@ import { EquipmentPage } from './pages/EquipmentPage.tsx';
 import { CollectionPage } from './pages/CollectionPage.tsx';
 import { GracesPage } from './pages/GracesPage.tsx';
 import { BuildPage } from './pages/BuildPage.tsx';
+import { CalculatorPage } from './features/calculator/index.tsx';
 import { LoadoutPage } from './pages/LoadoutPage.tsx';
 import { ChatPage } from './pages/ChatPage.tsx';
 import { ComparePage } from './pages/ComparePage.tsx';
@@ -45,6 +46,7 @@ type PageKey =
   | 'collections'
   | 'loadout'
   | 'planner'
+  | 'calculator'
   | 'quests'
   | 'achievements'
   | 'timeline'
@@ -62,6 +64,7 @@ const NAV: { key: PageKey; label: string; needsSave: boolean }[] = [
   { key: 'collections', label: '收藏图鉴', needsSave: true },
   { key: 'loadout', label: '配装器', needsSave: true },
   { key: 'planner', label: '洗点模拟', needsSave: true },
+  { key: 'calculator', label: '计算器', needsSave: true },
   { key: 'quests', label: 'NPC 任务线', needsSave: true },
   { key: 'achievements', label: '成就徽章', needsSave: true },
   { key: 'timeline', label: '游玩时间线', needsSave: true },
@@ -193,6 +196,7 @@ function ErShell({ goLauncher }: { goLauncher: () => void }) {
             {page === 'collections' && <CollectionPage />}
             {page === 'loadout' && <LoadoutPage />}
             {page === 'planner' && <BuildPage />}
+            {page === 'calculator' && <CalculatorPage />}
             {page === 'quests' && <QuestsPage />}
             {page === 'achievements' && <AchievementsPage onOpenCollection={() => setPage('collections')} />}
             {page === 'timeline' && <TimelinePage />}

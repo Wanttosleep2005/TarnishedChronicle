@@ -3,8 +3,7 @@
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $root = Split-Path -Parent $PSScriptRoot
-$weaponBook = Join-Path $root '倍率(App+Ver.+1.16.2)-敌人整合.xlsx'
-$formulaBook = Join-Path $root '倍率文件(App+Ver.+1.12.3).xlsx'
+$sourceBook = Join-Path $root '倍率文件(Ver.+1.16.2).xlsx'
 $output = Join-Path $root 'src/renderer/src/data/generated/combat-data.ts'
 
 function Read-ZipText($zip, [string]$name) {
@@ -33,11 +32,11 @@ function Read-Sheet([string]$path, [string]$sheetFile) {
     $document = New-Object System.Xml.XmlDocument
     $namespace = New-Object System.Xml.XmlNamespaceManager($document.NameTable)
     $namespace.AddNamespace('x', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main')
-    $shared = @()
+    $shared = New-Object 'System.Collections.Generic.List[string]'
     $sharedText = Read-ZipText $zip 'xl/sharedStrings.xml'
     if ($sharedText) {
       $sharedDocument = [xml]$sharedText
-      foreach ($item in $sharedDocument.SelectNodes('//x:si', $namespace)) { $shared += [string]$item.InnerText }
+      foreach ($item in $sharedDocument.SelectNodes('//x:si', $namespace)) { $shared.Add([string]$item.InnerText) }
     }
     $sheetDocument = [xml](Read-ZipText $zip ("xl/" + $sheetFile))
     $rows = @($sheetDocument.worksheet.sheetData.row)
@@ -46,32 +45,42 @@ function Read-Sheet([string]$path, [string]$sheetFile) {
     foreach ($cell in $rows[0].c) {
       $headers[[string]$cell.r -replace '\d+', ''] = Read-CellValue $cell $shared $namespace
     }
-    $result = @()
-    foreach ($row in ($rows | Select-Object -Skip 1)) {
+    $result = foreach ($row in ($rows | Select-Object -Skip 1)) {
       $record = [ordered]@{}
       foreach ($key in $headers.Keys) { $record[$headers[$key]] = '' }
       foreach ($cell in $row.c) {
         $column = ([string]$cell.r -replace '\d+', '')
         if ($headers.Contains($column)) { $record[$headers[$column]] = Read-CellValue $cell $shared $namespace }
       }
-      $result += [pscustomobject]$record
+      [pscustomobject]$record
     }
     return $result
   } finally { $zip.Dispose() }
 }
 
-function NumberOrNull($value) {
+function NumberParts($value) {
   if ($null -eq $value) { return $null }
   $text = ([string]$value).Trim()
   if ([string]::IsNullOrWhiteSpace($text)) { return $null }
-  $text = ($text -replace '\([^)]*\)', '')
-  $parts = $text -split '\+'
-  $sum = 0.0
-  foreach ($part in $parts) {
-    $token = $part.Trim()
-    if ($token -notmatch '^-?\d+(\.\d+)?$') { return $null }
-    $sum += [double]::Parse($token, [Globalization.CultureInfo]::InvariantCulture)
+  $matches = [regex]::Matches($text, '-?\d+(?:\.\d+)?')
+  if ($matches.Count -eq 0) { return $null }
+  foreach ($match in $matches) {
+    [double]::Parse($match.Value, [Globalization.CultureInfo]::InvariantCulture)
   }
+}
+
+function NumberOrNull($value) {
+  $parts = @(NumberParts $value)
+  if ($parts.Count -eq 0) { return $null }
+  $sum = 0.0
+  foreach ($part in $parts) { $sum += $part }
+  return $sum
+}
+
+function SumParts($parts) {
+  if ($null -eq $parts -or $parts.Count -eq 0) { return $null }
+  $sum = 0.0
+  foreach ($part in $parts) { $sum += $part }
   return $sum
 }
 
@@ -81,20 +90,22 @@ function IntOrNull($value) {
   return [int]$number
 }
 
-$actionNames = @(
-  '单手 轻击 1', '单手 轻击 2', '单手 重击 1', '单手 重击 2',
-  '单手 满蓄力 重击 1', '单手 满蓄力 重击 2', '单手 跳 轻击', '单手 跳 重击',
-  '双持 轻击 1', '双持 轻击 2', '双持 重击 1', '双持 重击 2',
-  '双持 满蓄力 重击 1', '双持 满蓄力 重击 2', '双持 跳 轻击', '双持 跳 重击',
-  '左手（副手） 轻击 1'
-)
+function PhysicalAttackTypeParts($value) {
+  if ($null -eq $value) { return @() }
+  foreach ($match in [regex]::Matches([string]$value, '普通|斩击|打击|突刺')) { $match.Value }
+}
 
-$weaponRows = Read-Sheet $weaponBook 'worksheets/sheet8.xml'
+function BooleanValue($value) {
+  $text = ([string]$value).Trim()
+  return $text -eq '1' -or $text -eq 'TRUE'
+}
+
+$weaponRows = Read-Sheet $sourceBook 'worksheets/sheet35.xml'
 $weaponByName = [ordered]@{}
 foreach ($row in $weaponRows) {
   $weapon = [string]$row.'武器名'
   $action = [string]$row.'动作'
-  if ([string]::IsNullOrWhiteSpace($weapon) -or $actionNames -notcontains $action) { continue }
+  if ([string]::IsNullOrWhiteSpace($weapon) -or [string]::IsNullOrWhiteSpace($action)) { continue }
   if (-not $weaponByName.Contains($weapon)) {
     $weaponByName[$weapon] = [ordered]@{
       weaponClass = $row.'武器种类'
@@ -102,14 +113,22 @@ foreach ($row in $weaponRows) {
       actions = [ordered]@{}
     }
   }
+  $damageMultiplierParts = @(NumberParts $row.'动作倍率')
+  $pvePoiseParts = @(NumberParts $row.'PVE削韧值')
   $weaponByName[$weapon].actions[$action] = [ordered]@{
-    damageMultiplier = NumberOrNull $row.'动作倍率'
-    pvePoise = NumberOrNull $row.'PVE削韧值'
+    damageMultiplier = SumParts $damageMultiplierParts
+    damageMultiplierParts = $damageMultiplierParts
+    damageMultiplierText = [string]$row.'动作倍率'
+    pvePoise = SumParts $pvePoiseParts
+    pvePoiseParts = $pvePoiseParts
+    pvePoiseText = [string]$row.'PVE削韧值'
+    physicalAttackType = [string]$row.'物理攻击类型'
+    physicalAttackTypes = @(PhysicalAttackTypeParts $row.'物理攻击类型')
   }
 }
 $weaponActions = @($weaponByName.Values)
 
-$spellRows = Read-Sheet $formulaBook 'worksheets/sheet20.xml'
+$spellRows = Read-Sheet $sourceBook 'worksheets/sheet20.xml'
 $spellDamageColumns = [ordered]@{
   'physical' = 'Physical MV'
   'magic' = 'Magic MV'
@@ -138,20 +157,44 @@ $spellData = foreach ($row in $spellRows) {
   }
 }
 
-$enemyRows = Read-Sheet $weaponBook 'worksheets/sheet9.xml'
+$enemyRows = Read-Sheet $sourceBook 'worksheets/sheet36.xml'
 $defenseColumns = [ordered]@{
-  physical = '基础防御 phys'; magic = '基础防御 mag'; fire = '基础防御 fire'; lightning = '基础防御 thunder'; dark = '基础防御 dark'
+  physical = '基础防御 phys'; magic = '基础防御 mag'; fire = '基础防御 fire'; lightning = '基础防御 thunder'; holy = '基础防御 dark'
+}
+$defenseScaleColumns = [ordered]@{
+  physical = '常驻防御倍率 phys'; magic = '常驻防御倍率 mag'; fire = '常驻防御倍率 fire'; lightning = '常驻防御倍率 thunder'; holy = '常驻防御倍率 dark'
+}
+$newGameDefenseScaleColumns = [ordered]@{
+  physical = '周目防御倍率 phys'; magic = '周目防御倍率 mag'; fire = '周目防御倍率 fire'; lightning = '周目防御倍率 thunder'; holy = '周目防御倍率 dark'
 }
 $cutColumns = [ordered]@{
   standard = '承伤倍率 普通'; slash = '承伤倍率 斩击'; strike = '承伤倍率 打击'; thrust = '承伤倍率 突刺'; magic = '承伤倍率 魔力'; fire = '承伤倍率 火'; lightning = '承伤倍率 雷'; holy = '承伤倍率 圣'
+}
+$statusColumns = [ordered]@{
+  poison = '毒'; rot = '腐败'; bleed = '出血'; frost = '冻伤'; sleep = '睡眠'; madness = '发狂'; death = '抗死度'
 }
 $enemyData = foreach ($row in $enemyRows) {
   $npcId = IntOrNull $row.'NpcParam ID'
   if ($null -eq $npcId -or [string]::IsNullOrWhiteSpace($row.'中文名（官方/Smithbox）')) { continue }
   $defense = [ordered]@{}
   foreach ($key in $defenseColumns.Keys) { $defense[$key] = NumberOrNull $row.($defenseColumns[$key]) }
+  $defenseScale = [ordered]@{}
+  foreach ($key in $defenseScaleColumns.Keys) { $defenseScale[$key] = NumberOrNull $row.($defenseScaleColumns[$key]) }
+  $newGameDefenseScale = [ordered]@{}
+  foreach ($key in $newGameDefenseScaleColumns.Keys) { $newGameDefenseScale[$key] = NumberOrNull $row.($newGameDefenseScaleColumns[$key]) }
   $damageTaken = [ordered]@{}
   foreach ($key in $cutColumns.Keys) { $damageTaken[$key] = NumberOrNull $row.($cutColumns[$key]) }
+  $baseStatusResistance = [ordered]@{}
+  $statusResistance = [ordered]@{}
+  $newGameStatusScale = [ordered]@{}
+  $statusImmunity = [ordered]@{}
+  foreach ($key in $statusColumns.Keys) {
+    $label = $statusColumns[$key]
+    $baseStatusResistance[$key] = NumberOrNull $row.("基础抗性 $label")
+    $statusResistance[$key] = NumberOrNull $row.("常驻后抗性 $label")
+    $newGameStatusScale[$key] = NumberOrNull $row.("周目抗性倍率 $label")
+    $statusImmunity[$key] = BooleanValue $row.("常驻免疫 $label")
+  }
   [ordered]@{
     kind = $row.'类型（含内部参数）'
     bossFlagId = IntOrNull $row.'BossFlag ID'
@@ -162,12 +205,18 @@ $enemyData = foreach ($row in $enemyRows) {
     hp = NumberOrNull $row.'常驻后 HP'
     saDurability = NumberOrNull $row.'SA 耐久'
     defense = $defense
+    defenseScale = $defenseScale
+    newGameDefenseScale = $newGameDefenseScale
     damageTaken = $damageTaken
+    baseStatusResistance = $baseStatusResistance
+    statusResistance = $statusResistance
+    newGameStatusScale = $newGameStatusScale
+    statusImmunity = $statusImmunity
   }
 }
 
 $payload = [ordered]@{
-  source = '本地 Excel：倍率(App+Ver.+1.16.2)-敌人整合.xlsx、倍率文件(App+Ver.+1.12.3).xlsx'
+  source = '本地 Excel：倍率文件(Ver.+1.16.2).xlsx'
   weaponActions = @($weaponActions)
   spells = @($spellData)
   enemies = @($enemyData)
@@ -179,7 +228,13 @@ $header = @'
 
 export interface WeaponCombatAction {
   readonly damageMultiplier: number | null;
+  readonly damageMultiplierParts: readonly number[];
+  readonly damageMultiplierText: string;
   readonly pvePoise: number | null;
+  readonly pvePoiseParts: readonly number[];
+  readonly pvePoiseText: string;
+  readonly physicalAttackType: string;
+  readonly physicalAttackTypes: readonly string[];
 }
 
 export interface WeaponCombatRow {
@@ -211,7 +266,13 @@ export interface EnemyCombatRow {
   readonly hp: number | null;
   readonly saDurability: number | null;
   readonly defense: Readonly<Record<string, number | null>>;
+  readonly defenseScale: Readonly<Record<string, number | null>>;
+  readonly newGameDefenseScale: Readonly<Record<string, number | null>>;
   readonly damageTaken: Readonly<Record<string, number | null>>;
+  readonly baseStatusResistance: Readonly<Record<string, number | null>>;
+  readonly statusResistance: Readonly<Record<string, number | null>>;
+  readonly newGameStatusScale: Readonly<Record<string, number | null>>;
+  readonly statusImmunity: Readonly<Record<string, boolean>>;
 }
 
 '@
