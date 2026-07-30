@@ -1,15 +1,17 @@
 export type RegionWorld =
-  | 'lands-between-surface'
+  | 'lands-between-land'
   | 'lands-between-underground'
-  | 'lands-between-special'
-  | 'shadow-surface'
-  | 'shadow-depths'
+  | 'shadow-land'
   | 'other';
+
+export type RegionParent = 'lands-between' | 'shadow-land';
 
 export interface RegionWorldDefinition {
   key: RegionWorld;
   label: string;
   order: number;
+  parent: RegionParent;
+  parentLabel: string;
 }
 
 export interface RegionDefinition extends RegionWorldDefinition {
@@ -18,12 +20,9 @@ export interface RegionDefinition extends RegionWorldDefinition {
 }
 
 export const REGION_WORLDS: readonly RegionWorldDefinition[] = [
-  { key: 'lands-between-surface', label: '交界地 · 地表', order: 0 },
-  { key: 'lands-between-underground', label: '交界地 · 地下', order: 1 },
-  { key: 'lands-between-special', label: '交界地 · 特殊区域', order: 2 },
-  { key: 'shadow-surface', label: '幽影之地 · 地表', order: 3 },
-  { key: 'shadow-depths', label: '幽影之地 · 地下与特殊区域', order: 4 },
-  { key: 'other', label: '其他区域', order: 99 },
+  { key: 'lands-between-land', label: '陆地', order: 0, parent: 'lands-between', parentLabel: '交界地' },
+  { key: 'lands-between-underground', label: '地下', order: 1, parent: 'lands-between', parentLabel: '交界地' },
+  { key: 'shadow-land', label: '幽影地', order: 2, parent: 'shadow-land', parentLabel: '幽影地' },
 ] as const;
 
 const WORLD_BY_KEY = new Map(REGION_WORLDS.map((world) => [world.key, world]));
@@ -38,7 +37,7 @@ function regions(world: RegionWorld, names: readonly string[]): RegionDefinition
  * 这里同时覆盖赐福和 NPC 任务当前阶段使用的全部地区名称。
  */
 export const REGION_CATALOG: readonly RegionDefinition[] = [
-  ...regions('lands-between-surface', [
+  ...regions('lands-between-land', [
     '啜泣半岛',
     '宁姆格福',
     '盖利德',
@@ -73,17 +72,18 @@ export const REGION_CATALOG: readonly RegionDefinition[] = [
     '弃置恶兆的地底',
     '蒙格温王朝',
   ]),
-  ...regions('lands-between-special', [
+  ...regions('lands-between-land', [
     '漂流墓地',
     '圆桌厅堂',
     '石舞台',
     '逐渐崩毁的法姆·亚兹拉',
     '灰城罗德尔',
   ]),
-  ...regions('shadow-surface', [
+  ...regions('shadow-land', [
     '墓地平原',
     '“塔之镇”贝瑞特',
     '恩希斯城',
+    '穆斯废墟',
     '幽影亚坛',
     '幽影城',
     '幽影城（教区）',
@@ -96,11 +96,12 @@ export const REGION_CATALOG: readonly RegionDefinition[] = [
     '尖刺山的山脚',
     '尖刺山',
   ]),
-  ...regions('shadow-depths', [
+  ...regions('shadow-land', [
     '石棺大洞',
     '谷底森林',
     '米德拉府邸',
     '艾尼尔·伊利姆',
+    '利亚指头遗迹',
   ]),
 ] as const;
 
@@ -109,7 +110,13 @@ const REGION_ALIASES = new Map([
   ['永恒之城诺克隆恩', '“永恒之城”诺克隆恩'],
   ['圣树分枝艾布雷菲尔', '“圣树分枝”艾布雷菲尔'],
 ]);
-const OTHER_WORLD = WORLD_BY_KEY.get('other')!;
+const OTHER_WORLD: RegionWorldDefinition = {
+  key: 'other',
+  label: '其他区域',
+  order: 99,
+  parent: 'lands-between',
+  parentLabel: '交界地',
+};
 
 export function regionDefinition(region: string): RegionDefinition {
   return (

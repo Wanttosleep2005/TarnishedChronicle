@@ -64,7 +64,6 @@ const NAV: { key: PageKey; label: string; needsSave: boolean }[] = [
   { key: 'collections', label: '收藏图鉴', needsSave: true },
   { key: 'loadout', label: '配装器', needsSave: true },
   { key: 'planner', label: '洗点模拟', needsSave: true },
-  { key: 'calculator', label: '计算器', needsSave: true },
   { key: 'quests', label: 'NPC 任务线', needsSave: true },
   { key: 'achievements', label: '成就徽章', needsSave: true },
   { key: 'timeline', label: '游玩时间线', needsSave: true },
@@ -74,7 +73,7 @@ const NAV: { key: PageKey; label: string; needsSave: boolean }[] = [
   { key: 'settings', label: '设置', needsSave: false },
 ];
 
-const PAGE_KEYS: PageKey[] = NAV.map((n) => n.key);
+const PAGE_KEYS: PageKey[] = [...NAV.map((n) => n.key), 'calculator'];
 
 function initialPage(): PageKey {
   const hash = window.location.hash.replace('#', '') as PageKey;
@@ -85,6 +84,7 @@ function ErShell({ goLauncher }: { goLauncher: () => void }) {
   const { status, error, save, slotIndex, setSlotIndex, openPicker, reload, savePath, mapFocus, mapReplay } =
     useSaveContext();
   const [page, setPage] = useState<PageKey>(initialPage);
+  const [plannerToolsOpen, setPlannerToolsOpen] = useState(() => initialPage() === 'calculator');
 
   // 其他页面点了"在地图查看 / 回放" → 切到地图页(由 MapPage 消费)
   useEffect(() => {
@@ -126,18 +126,63 @@ function ErShell({ goLauncher }: { goLauncher: () => void }) {
         </div>
 
         <nav className="nav">
-          {NAV.map((item) => (
-            <button
-              key={item.key}
-              className={`nav-item ${page === item.key ? 'active' : ''}`}
-              disabled={item.needsSave && !hasSave}
-              style={item.needsSave && !hasSave ? { opacity: 0.35, cursor: 'not-allowed' } : {}}
-              onClick={() => setPage(item.key)}
-            >
-              <span className="nav-icon">{NAV_ICONS[item.key]?.()}</span>
-              {item.label}
-            </button>
-          ))}
+          {NAV.map((item) => {
+            const isDisabled = item.needsSave && !hasSave;
+            const itemStyle = isDisabled ? { opacity: 0.35, cursor: 'not-allowed' } : {};
+
+            if (item.key !== 'planner') {
+              return (
+                <button
+                  key={item.key}
+                  className={`nav-item ${page === item.key ? 'active' : ''}`}
+                  disabled={isDisabled}
+                  style={itemStyle}
+                  onClick={() => setPage(item.key)}
+                >
+                  <span className="nav-icon">{NAV_ICONS[item.key]?.()}</span>
+                  {item.label}
+                </button>
+              );
+            }
+
+            return (
+              <div className="nav-group" key={item.key}>
+                <div className="nav-parent">
+                  <button
+                    className={`nav-item ${page === item.key ? 'active' : ''}`}
+                    disabled={isDisabled}
+                    style={itemStyle}
+                    onClick={() => setPage(item.key)}
+                  >
+                    <span className="nav-icon">{NAV_ICONS[item.key]?.()}</span>
+                    {item.label}
+                  </button>
+                  <button
+                    type="button"
+                    className={`nav-child-toggle ${plannerToolsOpen ? 'expanded' : ''}`}
+                    disabled={isDisabled}
+                    aria-label={plannerToolsOpen ? '收起计算器' : '展开计算器'}
+                    aria-expanded={plannerToolsOpen}
+                    title={plannerToolsOpen ? '收起计算器' : '展开计算器'}
+                    onClick={() => setPlannerToolsOpen((open) => !open)}
+                  >
+                    <span className="nav-disclosure" aria-hidden="true" />
+                  </button>
+                </div>
+                {plannerToolsOpen && (
+                  <button
+                    className={`nav-item nav-child ${page === 'calculator' ? 'active' : ''}`}
+                    disabled={isDisabled}
+                    style={itemStyle}
+                    onClick={() => setPage('calculator')}
+                  >
+                    <span className="nav-icon">{NAV_ICONS.calculator?.()}</span>
+                    计算器
+                  </button>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
         <div className="sidebar-foot">

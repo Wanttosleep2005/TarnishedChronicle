@@ -86,7 +86,7 @@ check(
 );
 
 const questAudit = questDefinitionAudit();
-check(questAudit.quests === 26, `NPC 任务线数量应为 26,当前为 ${questAudit.quests}`);
+check(questAudit.quests === 44, `NPC 任务线数量应为 44,当前为 ${questAudit.quests}`);
 check(questAudit.unresolvedGraces.length === 0, `NPC 阶段含未解析赐福:${questAudit.unresolvedGraces.join(', ')}`);
 check(questAudit.unresolvedSignals.length === 0, `NPC 阶段含未解析信号:${questAudit.unresolvedSignals.join(', ')}`);
 
