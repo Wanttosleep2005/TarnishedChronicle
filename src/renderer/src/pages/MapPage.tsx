@@ -419,10 +419,6 @@ export function MapPage() {
             ctx.stroke();
             ctx.restore();
           }
-          ctx.fillStyle = 'rgba(12, 26, 19, 0.55)';
-          ctx.beginPath();
-          ctx.arc(x, y, 7.8 * markerScale, 0, Math.PI * 2);
-          ctx.fill();
           ctx.fillStyle = '#67d2a3';
           ctx.strokeStyle = 'rgba(10, 31, 23, 0.96)';
           ctx.lineWidth = Math.max(1.2, 1.1 * markerScale);
