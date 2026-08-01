@@ -752,6 +752,80 @@ textarea.input {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 310px), 1fr));
   gap: 12px;
 }
+.collection-set-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.collection-set {
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--panel-2), var(--panel));
+}
+.collection-set.owned {
+  border-color: rgba(133, 151, 94, 0.3);
+}
+.collection-set.missing {
+  border-color: rgba(var(--accent-rgb), 0.22);
+}
+.collection-set.unresolved {
+  border-color: rgba(162, 147, 122, 0.25);
+}
+.collection-set-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+}
+.collection-set-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-family: var(--serif);
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.collection-set-count {
+  flex: none;
+  color: var(--muted);
+  font-size: 11.5px;
+}
+.collection-set-dlc {
+  flex: none;
+  color: var(--faint);
+  font-size: 10.5px;
+}
+.collection-set-caret {
+  flex: none;
+  color: var(--gold-dim);
+  font-size: 11px;
+}
+.collection-set-body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 10px;
+  padding: 12px;
+  border-top: 1px dashed var(--line);
+}
+.collection-set-section {
+  margin: 14px 2px 8px;
+  color: var(--faint);
+  font-size: 12px;
+}
+.collection-empty {
+  padding: 24px;
+  color: var(--faint);
+  text-align: center;
+}
 .collection-entry {
   min-width: 0;
   padding: 13px 14px;

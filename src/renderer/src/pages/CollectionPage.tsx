@@ -8,16 +8,20 @@ import {
   deriveCollections,
   entryStatus,
   enrichCollectionLocations,
+  groupArmorSets,
+  isDlcArmorId,
   type CollectionEntry,
   type CollectionKind,
   type CollectionStatus,
+  type ArmorSetStatus,
+  type ArmorSetView,
   unresolvedAcquisitionHint,
 } from '../lib/collections.ts';
 import { findItemSources, type ItemPlacementSource } from '../lib/locate-item.ts';
 import { fuzzyMatch } from '../lib/fuzzy-search.ts';
 import { useActiveSlot, useSaveContext } from '../lib/save-context.tsx';
 
-type StatusFilter = 'all' | CollectionStatus;
+type StatusFilter = 'all' | CollectionStatus | ArmorSetStatus;
 type WorldFilter = 'all' | 'base' | 'dlc';
 
 const categoryOrder = new Map(COLLECTION_GROUPS.map((group) => [group.kind, group.order]));
@@ -35,6 +39,13 @@ const ACQUISITION_KIND_LABEL: Readonly<Record<string, string>> = {
   other: '其他来源',
   unknown: '待核对',
 };
+
+function statusText(status: CollectionStatus | ArmorSetStatus): string {
+  if (status === 'owned') return '已拥有';
+  if (status === 'missing') return '未获取';
+  if (status === 'partial') return '部分获取';
+  return '无法确认';
+}
 
 function categoryLabel(entry: CollectionEntry): string {
   if (entry.kind === 'weapon') return '武器';
@@ -73,7 +84,7 @@ function CollectionEntryCard({
           className={`collection-state ${status}`}
           title={status === 'unresolved' ? '不是不可获得，只是当前数据没有可靠的获取记录或坐标。' : undefined}
         >
-          {status === 'owned' ? '已拥有' : status === 'unresolved' ? '无法确认' : '未获取'}
+          {statusText(status)}
         </span>
       </div>
       <div className="collection-entry-meta">
@@ -155,6 +166,39 @@ function CollectionEntryCard({
   );
 }
 
+function ArmorSetCard({
+  view,
+  expanded,
+  onToggle,
+  onLocate,
+  locationsReady,
+}: {
+  view: ArmorSetView;
+  expanded: boolean;
+  onToggle: () => void;
+  onLocate: (entry: CollectionEntry, source: CollectionEntry['sources'][number]) => void;
+  locationsReady: boolean;
+}) {
+  return (
+    <article className={`collection-set ${view.status}`}>
+      <button className="collection-set-head" type="button" aria-expanded={expanded} onClick={onToggle}>
+        <span className="collection-set-name">{view.def.name}</span>
+        <span className="collection-set-count">{view.ownedCount} / {view.entries.length}</span>
+        <span className="collection-set-dlc">{view.def.dlc ? '黄金树幽影' : '本体'}</span>
+        <span className={`collection-state ${view.status}`}>{statusText(view.status)}</span>
+        <span className="collection-set-caret">{expanded ? '收起' : '展开'}</span>
+      </button>
+      {expanded && (
+        <div className="collection-set-body">
+          {view.entries.map((entry) => (
+            <CollectionEntryCard key={entry.key} entry={entry} locationsReady={locationsReady} onLocate={onLocate} />
+          ))}
+        </div>
+      )}
+    </article>
+  );
+}
+
 export function CollectionPage() {
   const slot = useActiveSlot();
   const { requestMapFocus } = useSaveContext();
@@ -165,8 +209,11 @@ export function CollectionPage() {
   const [category, setCategory] = useState<CollectionKind | 'all'>('all');
   const [status, setStatus] = useState<StatusFilter>('all');
   const [world, setWorld] = useState<WorldFilter>('all');
+  const [armorView, setArmorView] = useState<'set' | 'piece'>('set');
   const [query, setQuery] = useState('');
   const [resultLimit, setResultLimit] = useState(240);
+  const [expandedSets, setExpandedSets] = useState<ReadonlySet<string>>(new Set());
+  const setViewActive = category === 'armor' && armorView === 'set';
 
   useEffect(() => {
     if (!catalog) return;
@@ -189,6 +236,10 @@ export function CollectionPage() {
     setResultLimit(240);
   }, [category, status, world, query]);
 
+  useEffect(() => {
+    if (!setViewActive && status === 'partial') setStatus('all');
+  }, [setViewActive, status]);
+
   const locatedCatalog = useMemo(
     () => (catalog ? enrichCollectionLocations(catalog, sourceMap) : null),
     [catalog, sourceMap],
@@ -208,6 +259,29 @@ export function CollectionPage() {
       .sort((left, right) => categoryOrder.get(left.kind)! - categoryOrder.get(right.kind)! || compareCollectionEntries(left, right));
   }, [category, locatedCatalog, locationsReady, query, status, world]);
 
+  const visibleSets = useMemo(() => {
+    if (!locatedCatalog || !setViewActive) return null;
+    const grouped = groupArmorSets(locatedCatalog.entries, locationsReady);
+    const sets = grouped.sets
+      .filter((view) => status === 'all' || view.status === status)
+      .filter((view) => world === 'all' || (world === 'dlc' ? view.def.dlc : !view.def.dlc))
+      .filter((view) => {
+        if (!query.trim()) return true;
+        const text = [view.def.name, ...view.entries.map((entry) => `${entry.name} ${entry.en} ${entry.category}`)].join(' ');
+        return fuzzyMatch(query, text);
+      })
+      .sort((left, right) => left.def.order - right.def.order);
+    const singles = grouped.singles
+      .filter((entry) => status === 'all' || entryStatus(entry, locationsReady) === status)
+      .filter((entry) => world === 'all' || (world === 'dlc' ? isDlcArmorId(entry.id) : !isDlcArmorId(entry.id)))
+      .filter((entry) => {
+        if (!query.trim()) return true;
+        return fuzzyMatch(query, entry.name, entry.en, entry.category, '防具');
+      })
+      .sort(compareCollectionEntries);
+    return { sets, singles };
+  }, [locatedCatalog, locationsReady, query, setViewActive, status, world]);
+
   if (!slot || !profile || !locatedCatalog) return null;
 
   const groups = locatedCatalog.groups.filter((group) => category === 'all' || group.kind === category);
@@ -215,6 +289,17 @@ export function CollectionPage() {
 
   const locate = (entry: CollectionEntry, source: CollectionEntry['sources'][number]) => {
     requestMapFocus({ ...source.projected, name: `${entry.name} · ${source.referenceLabel ?? source.sourceLabel}` });
+  };
+  const statusOptions: readonly StatusFilter[] = setViewActive
+    ? ['all', 'owned', 'missing', 'partial', 'unresolved']
+    : ['all', 'owned', 'missing', 'unresolved'];
+  const toggleSet = (name: string) => {
+    setExpandedSets((current) => {
+      const next = new Set(current);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
   };
 
   return (
@@ -253,9 +338,9 @@ export function CollectionPage() {
         </div>
         <div className="collection-filter-row">
           <div className="collection-filter-label">状态</div>
-          {(['all', 'owned', 'missing', 'unresolved'] as const).map((value) => (
+          {statusOptions.map((value) => (
             <button key={value} className={`btn small ${status === value ? 'primary' : ''}`} onClick={() => setStatus(value)}>
-              {value === 'all' ? '全部' : value === 'owned' ? '已拥有' : value === 'missing' ? '未获取' : '无法确认'}
+              {value === 'all' ? '全部' : statusText(value)}
             </button>
           ))}
           <div className="collection-filter-label">版本</div>
@@ -264,19 +349,58 @@ export function CollectionPage() {
               {value === 'all' ? '全部' : value === 'base' ? '本体' : '黄金树幽影'}
             </button>
           ))}
+          {category === 'armor' && (
+            <>
+              <div className="collection-filter-label">视图</div>
+              <button className={`btn small ${armorView === 'set' ? 'primary' : ''}`} onClick={() => setArmorView('set')}>按套装</button>
+              <button className={`btn small ${armorView === 'piece' ? 'primary' : ''}`} onClick={() => setArmorView('piece')}>按散件</button>
+            </>
+          )}
           <input className="input collection-search" placeholder="搜索名称 / 类别…" value={query} onChange={(event) => setQuery(event.target.value)} />
         </div>
       </Card>
 
       <div className="collection-results-head">
-        <span>显示 {Math.min(resultLimit, visibleEntries.length).toLocaleString('zh-CN')} / {visibleEntries.length.toLocaleString('zh-CN')} 项</span>
+        <span>
+          {setViewActive && visibleSets
+            ? `显示 ${(visibleSets.sets.length + visibleSets.singles.length).toLocaleString('zh-CN')} 项（套装 ${visibleSets.sets.length.toLocaleString('zh-CN')} · 单件 ${visibleSets.singles.length.toLocaleString('zh-CN')}）`
+            : `显示 ${Math.min(resultLimit, visibleEntries.length).toLocaleString('zh-CN')} / ${visibleEntries.length.toLocaleString('zh-CN')} 项`}
+        </span>
         <span className="hint">武器按基础型号计数 · 未定位不代表未拥有</span>
       </div>
-      <div className="collection-grid">
-        {visibleEntries.slice(0, resultLimit).map((entry) => (
-          <CollectionEntryCard key={entry.key} entry={entry} locationsReady={locationsReady} onLocate={locate} />
-        ))}
-      </div>
+      {setViewActive && visibleSets ? (
+        <div className="collection-set-list">
+          {visibleSets.sets.map((view) => (
+            <ArmorSetCard
+              key={view.def.name}
+              view={view}
+              expanded={expandedSets.has(view.def.name)}
+              onToggle={() => toggleSet(view.def.name)}
+              onLocate={locate}
+              locationsReady={locationsReady}
+            />
+          ))}
+          {visibleSets.singles.length > 0 && (
+            <>
+              <div className="collection-set-section">单件</div>
+              <div className="collection-grid">
+                {visibleSets.singles.slice(0, resultLimit).map((entry) => (
+                  <CollectionEntryCard key={entry.key} entry={entry} locationsReady={locationsReady} onLocate={locate} />
+                ))}
+              </div>
+            </>
+          )}
+          {visibleSets.sets.length === 0 && visibleSets.singles.length === 0 && (
+            <div className="collection-empty">没有符合条件的防具</div>
+          )}
+        </div>
+      ) : (
+        <div className="collection-grid">
+          {visibleEntries.slice(0, resultLimit).map((entry) => (
+            <CollectionEntryCard key={entry.key} entry={entry} locationsReady={locationsReady} onLocate={locate} />
+          ))}
+        </div>
+      )}
       {visibleEntries.length === 0 && <div className="notice">没有符合当前筛选条件的收藏条目。</div>}
       {resultLimit < visibleEntries.length && (
         <button className="btn" onClick={() => setResultLimit((limit) => limit + 240)}>加载更多</button>

@@ -8,6 +8,7 @@ import { TALISMANS } from '../data/generated/talismans.ts';
 import { WEAPONS } from '../data/generated/weapons.ts';
 import { COLLECTION_ACQUISITION, type CollectionAcquisitionRecord } from '../data/zh/collection-acquisition.ts';
 import { COLLECTION_ACQUISITION_ZH, type CollectionAcquisitionZhRecord } from '../data/zh/collection-acquisition-zh.ts';
+import { ARMOR_SETS, ARMOR_SINGLE_IDS, type ArmorSetDef } from '../data/zh/armor-sets.ts';
 import { WEAPON_ACQUISITION } from '../data/zh/weapon-acquisition.ts';
 import { zhItemNameByKind, displayPlace } from '../data/zh/translations.ts';
 import type { MasterPixel } from './map-affine.ts';
@@ -59,6 +60,56 @@ export interface CollectionCatalog {
   readonly entries: readonly CollectionEntry[];
   readonly owned: number;
   readonly total: number;
+}
+
+/** 防具分类占位行（头部/身体/腕部/腿部），不是真实装备，套装视图不展示。 */
+const ARMOR_PLACEHOLDER_IDS = new Set([10000, 10100, 10200, 10300]);
+
+/** DLC 防具的条目 ID 从 3000000 起。 */
+export function isDlcArmorId(id: number): boolean {
+  return id >= 3000000;
+}
+
+export type ArmorSetStatus = CollectionStatus | 'partial';
+
+export interface ArmorSetView {
+  readonly def: ArmorSetDef;
+  readonly entries: readonly CollectionEntry[];
+  readonly ownedCount: number;
+  readonly status: ArmorSetStatus;
+}
+
+export function armorSetStatus(entries: readonly CollectionEntry[], ownedCount: number, locationsReady: boolean): ArmorSetStatus {
+  if (entries.length === 0) return 'missing';
+  if (ownedCount === entries.length) return 'owned';
+  if (entries.some((entry) => entryStatus(entry, locationsReady) === 'unresolved')) return 'unresolved';
+  if (ownedCount > 0) return 'partial';
+  return 'missing';
+}
+
+/** 把防具目录按套装分组，未归入任何套装的散件作为单件返回。 */
+export function groupArmorSets(
+  entries: readonly CollectionEntry[],
+  locationsReady: boolean,
+): { sets: readonly ArmorSetView[]; singles: readonly CollectionEntry[] } {
+  const byId = new Map<number, CollectionEntry>();
+  for (const entry of entries) {
+    if (entry.kind !== 'armor' || ARMOR_PLACEHOLDER_IDS.has(entry.id)) continue;
+    byId.set(entry.id, entry);
+  }
+  const sets: ArmorSetView[] = [];
+  for (const def of ARMOR_SETS) {
+    const setEntries = def.itemIds
+      .map((id) => byId.get(id))
+      .filter((entry): entry is CollectionEntry => entry !== undefined);
+    if (setEntries.length === 0) continue;
+    const ownedCount = setEntries.filter((entry) => entry.owned).length;
+    sets.push({ def, entries: setEntries, ownedCount, status: armorSetStatus(setEntries, ownedCount, locationsReady) });
+  }
+  const singles = ARMOR_SINGLE_IDS
+    .map((id) => byId.get(id))
+    .filter((entry): entry is CollectionEntry => entry !== undefined);
+  return { sets, singles };
 }
 
 export const COLLECTION_GROUPS: readonly { kind: CollectionKind; label: string; order: number }[] = [
