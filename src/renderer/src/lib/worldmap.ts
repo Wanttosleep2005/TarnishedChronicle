@@ -229,7 +229,7 @@ export function buildPins(
       name: quest.npc,
       active: quest.status === 'ongoing',
       detail: `${quest.current.region} · ${quest.current.location} · ${quest.current.objective}`,
-      mapGraceFlagId: flagId,
+      mapGraceFlagId: flagId ?? undefined,
     });
   }
 
