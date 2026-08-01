@@ -182,7 +182,9 @@ export function deriveCollections(
 
   for (const item of WEAPONS) {
     if (item.id % 10000 !== 0 || item.id === 110000 || /arrow|bolt|bow|crossbow/i.test(item.category) || item.name.startsWith('[ERROR]')) continue;
-    entries.push(makeEntry('weapon', item.category, item.id, item.name, item.icon, profile.ownedWeaponBaseIds.has(item.id), 'weapon', WEAPON_ACQUISITION[item.id]));
+    const baseWeaponId = item.id - (item.id % 10000);
+    const acquisition = WEAPON_ACQUISITION[item.id] ?? (baseWeaponId !== item.id ? WEAPON_ACQUISITION[baseWeaponId] : undefined);
+    entries.push(makeEntry('weapon', item.category, item.id, item.name, item.icon, profile.ownedWeaponBaseIds.has(item.id), 'weapon', acquisition));
   }
   for (const item of ARMOR) {
     if (item.name.startsWith('[ERROR]')) continue;
