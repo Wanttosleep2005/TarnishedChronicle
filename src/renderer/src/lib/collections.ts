@@ -353,3 +353,16 @@ export function compareCollectionEntries(left: CollectionEntry, right: Collectio
   const rightRegion = right.sources[0]?.region ?? '其他区域';
   return compareRegions(leftRegion, rightRegion) || left.name.localeCompare(right.name, 'zh-CN') || left.id - right.id;
 }
+
+/** 收藏状态：已拥有 > 缺失（有来源或获取记录）> 无法确认（无任何可靠记录或坐标）。 */
+export function entryStatus(entry: CollectionEntry, locationsReady: boolean): CollectionStatus {
+  if (entry.owned) return 'owned';
+  if (
+    locationsReady
+    && entry.sources.length === 0
+    && !entry.acquisition
+    && !entry.acquisitionRecord?.verified
+    && !entry.acquisitionZhRecord?.verified
+  ) return 'unresolved';
+  return 'missing';
+}

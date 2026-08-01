@@ -6,6 +6,7 @@ import {
   COLLECTION_GROUPS,
   compareCollectionEntries,
   deriveCollections,
+  entryStatus,
   enrichCollectionLocations,
   type CollectionEntry,
   type CollectionKind,
@@ -41,17 +42,6 @@ function categoryLabel(entry: CollectionEntry): string {
     return ({ Head: '头部', Body: '身体', Arms: '腕部', Legs: '腿部' } as Readonly<Record<string, string>>)[entry.category] ?? '防具';
   }
   return COLLECTION_GROUPS.find((group) => group.kind === entry.kind)?.label ?? entry.category;
-}
-
-function entryStatus(entry: CollectionEntry, locationsReady: boolean): CollectionStatus {
-  if (entry.owned) return 'owned';
-  if (
-    locationsReady
-    && entry.sources.length === 0
-    && !entry.acquisition
-    && !entry.acquisitionRecord?.verified
-  ) return 'unresolved';
-  return 'missing';
 }
 
 function entryRegion(entry: CollectionEntry): string {
