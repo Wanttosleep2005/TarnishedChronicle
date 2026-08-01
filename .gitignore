@@ -14,6 +14,8 @@ shots/
 test-fixtures/
 .codex-work/
 .claude/
+.codex/backup-deepseek/
+backup-*/
 
 # 参考资料目录（各自是独立仓库，不应纳入本项目版本控制）
 _reference/
@@ -22,9 +24,26 @@ _reference/
 .env
 .env.*
 !.env.example
+*.toml
+api-key.txt
 
 # 系统与编辑器文件
 Thumbs.db
 Desktop.ini
 .DS_Store
 .vscode/
+.vs/
+*.suo
+*.user
+*.sln.old
+
+# 压缩包
+*.zip
+*.rar
+*.7z
+*.tmp
+*.cache
+
+# 艾尔登法环倍率表格（你红框内全部Excel/xlsm文件）
+*倍率*.xlsx
+*艾尔登法环*.xls*
