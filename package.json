@@ -1,6 +1,6 @@
 {
   "name": "tarnished-chronicle",
-  "version": "0.15.3",
+  "version": "0.15.4",
   "description": "存档编年史 — 艾尔登法环 / 杀戮尖塔 2 / 黑暗之魂 3 存档分析:进度、图鉴、成就与 LLM 游玩故事",
   "author": "Tarnished Chronicle Contributors",
   "main": "./out/main/index.js",

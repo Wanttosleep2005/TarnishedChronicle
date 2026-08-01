@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 const page = readFileSync(new URL('../src/renderer/src/pages/MapPage.tsx', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../src/renderer/src/styles.css', import.meta.url), 'utf8');
 const tiles = readFileSync(new URL('../src/renderer/src/lib/map-tiles.ts', import.meta.url), 'utf8');
+const worldmap = readFileSync(new URL('../src/renderer/src/lib/worldmap.ts', import.meta.url), 'utf8');
 
 function check(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
@@ -57,5 +58,10 @@ check(page.includes('hoverTooltipPosition'), '悬停点位标签应使用动态�
 check(page.includes('hover && hover.master === master'), '悬停点位标签只应在所属母图中显示。');
 check(page.includes('updateHoverTooltipPosition();'), '拖拽或缩放地图后，悬停点位标签应继续跟随图标。');
 check(!page.includes('selectedTooltipPosition'), '普通点位详情不应再依赖点击后显示。');
+check(worldmap.includes('mapGraceFlagId?: number'), 'NPC 点位应记录所属赐福旗标，便于同赐福聚合。');
+check(worldmap.includes('function spreadNpcPins'), '同一赐福上的多个 NPC 应绕圆周错开绘制。');
+check(worldmap.includes('pin.displayPx = pin.px'), 'NPC 错开后应保留真实坐标作为引线锚点。');
+check(page.includes('const anchorX = sx(pin.px);'), '绘制 NPC 时应从真实坐标向展示坐标画引线。');
+check(page.includes('pin.displayPx ?? pin.px'), '绘制与命中检测应使用错开后的展示坐标。');
 
 console.log('地图交互静态测试通过');

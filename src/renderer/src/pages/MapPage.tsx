@@ -311,8 +311,10 @@ export function MapPage() {
     for (const kind of drawOrder) {
       for (const pin of masterPins) {
         if (pin.kind !== kind || !visible(pin)) continue;
-        const x = sx(pin.px);
-        const y = sy(pin.py);
+        const x = sx(pin.displayPx ?? pin.px);
+        const y = sy(pin.displayPy ?? pin.py);
+        const anchorX = sx(pin.px);
+        const anchorY = sy(pin.py);
         if (x < -markerBounds || y < -markerBounds || x > w + markerBounds || y > h + markerBounds) continue;
         const color = pin.active ? COLORS[kind].on : COLORS[kind].off;
         ctx.fillStyle = color;
@@ -406,10 +408,26 @@ export function MapPage() {
           ctx.restore();
           ctx.lineWidth = markerLineWidth;
         } else if (kind === 'npc') {
+          if (anchorX !== x || anchorY !== y) {
+            ctx.save();
+            ctx.setLineDash([3 * markerScale, 2.5 * markerScale]);
+            ctx.strokeStyle = 'rgba(103, 210, 163, 0.55)';
+            ctx.lineWidth = Math.max(1, 0.9 * markerScale);
+            ctx.beginPath();
+            ctx.moveTo(anchorX, anchorY);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.restore();
+          }
           const npcRadius = 5 * markerScale;
+          ctx.fillStyle = 'rgba(12, 26, 19, 0.55)';
+          ctx.beginPath();
+          ctx.arc(x, y, npcRadius * 1.55, 0, Math.PI * 2);
+          ctx.fill();
           ctx.fillStyle = '#67d2a3';
           ctx.strokeStyle = 'rgba(10, 31, 23, 0.96)';
           ctx.lineWidth = Math.max(1.3, 1.2 * markerScale);
+          ctx.beginPath();
           ctx.moveTo(x, y - npcRadius);
           ctx.lineTo(x + npcRadius * 0.9, y + npcRadius * 0.72);
           ctx.lineTo(x - npcRadius * 0.9, y + npcRadius * 0.72);
@@ -562,8 +580,8 @@ export function MapPage() {
       [selected, '#ffde7a'],
     ] as [MapPin | null, string][]) {
       if (!pin || pin.master !== master) continue;
-      const x = sx(pin.px);
-      const y = sy(pin.py);
+      const x = sx(pin.displayPx ?? pin.px);
+      const y = sy(pin.displayPy ?? pin.py);
       ctx.strokeStyle = color;
       ctx.lineWidth = (pin === selected ? 2.2 : 1.5) * markerScale;
       ctx.beginPath();
@@ -595,8 +613,8 @@ export function MapPage() {
     }
 
     const { scale, ox, oy } = viewRef.current;
-    const pinX = hover.px * scale + ox;
-    const pinY = hover.py * scale + oy;
+    const pinX = (hover.displayPx ?? hover.px) * scale + ox;
+    const pinY = (hover.displayPy ?? hover.py) * scale + oy;
     const tooltipWidth = tooltip.offsetWidth;
     const tooltipHeight = tooltip.offsetHeight;
     const inset = 12;
@@ -674,7 +692,7 @@ export function MapPage() {
     if (pending && pending.master === master) {
       pendingFocusRef.current = null;
       setSelected(pending);
-      centerOn(pending.px, pending.py, Math.max(viewRef.current.scale, 0.55));
+      centerOn(pending.displayPx ?? pending.px, pending.displayPy ?? pending.py, Math.max(viewRef.current.scale, 0.55));
     } else {
       fitView();
     }
@@ -688,7 +706,7 @@ export function MapPage() {
         setMaster(pin.master);
       } else {
         setSelected(pin);
-        centerOn(pin.px, pin.py, Math.max(viewRef.current.scale, 0.55));
+        centerOn(pin.displayPx ?? pin.px, pin.displayPy ?? pin.py, Math.max(viewRef.current.scale, 0.55));
       }
     },
     [master, centerOn],
@@ -732,8 +750,8 @@ export function MapPage() {
       let bestDist = hitRadius * hitRadius;
       for (const pin of masterPins) {
         if (!visible(pin)) continue;
-        const dx = pin.px * scale + ox - mx;
-        const dy = pin.py * scale + oy - my;
+        const dx = (pin.displayPx ?? pin.px) * scale + ox - mx;
+        const dy = (pin.displayPy ?? pin.py) * scale + oy - my;
         const d = dx * dx + dy * dy;
         if (d < bestDist) {
           bestDist = d;

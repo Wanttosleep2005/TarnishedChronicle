@@ -24,6 +24,11 @@ export interface MapPin {
   color?: number;
   /** 用户追踪的当前任务阶段。 */
   tracked?: boolean;
+  /** NPC 当前阶段所属赐福旗标，用于同赐福聚合后错开绘制。 */
+  mapGraceFlagId?: number;
+  /** NPC 图标的展示坐标（绕所属赐福错开）；没有时由 px/py 兜底。 */
+  displayPx?: number;
+  displayPy?: number;
   /** 赐福所属地区，仅赐福点使用。 */
   region?: string;
   /** 原始地图和坐标，仅赐福点使用，用于同图直线距离计算。 */
@@ -224,6 +229,7 @@ export function buildPins(
       name: quest.npc,
       active: quest.status === 'ongoing',
       detail: `${quest.current.region} · ${quest.current.location} · ${quest.current.objective}`,
+      mapGraceFlagId: flagId,
     });
   }
 
@@ -268,6 +274,7 @@ export function buildPins(
     }
   }
 
+  spreadNpcPins(pins);
   return pins;
 }
 
@@ -314,3 +321,31 @@ export const MASTER_EXTENT: Record<MasterId, { w: number; h: number }> = {
 };
 
 export type { MasterPixel };
+
+/** 同一赐福上的多个 NPC 沿圆周错开，防止图标完全重合。 */
+const NPC_RING_SLOTS = 8;
+const NPC_RING_BASE = 34;
+const NPC_RING_STEP = 17;
+
+function spreadNpcPins(pins: MapPin[]): void {
+  const groups = new Map<string, MapPin[]>();
+  for (const pin of pins) {
+    if (pin.kind !== 'npc' || pin.mapGraceFlagId === undefined) continue;
+    const key = `${pin.master}|${pin.mapGraceFlagId}`;
+    const group = groups.get(key);
+    if (group) group.push(pin);
+    else groups.set(key, [pin]);
+  }
+
+  for (const group of groups.values()) {
+    group.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+    group.forEach((pin, index) => {
+      const ring = Math.floor(index / NPC_RING_SLOTS);
+      const slot = index % NPC_RING_SLOTS;
+      const radius = NPC_RING_BASE + ring * NPC_RING_STEP;
+      const angle = -Math.PI / 2 + (slot + (ring % 2) * 0.5) * ((Math.PI * 2) / NPC_RING_SLOTS);
+      pin.displayPx = pin.px + Math.cos(angle) * radius;
+      pin.displayPy = pin.py + Math.sin(angle) * radius;
+    });
+  }
+}
