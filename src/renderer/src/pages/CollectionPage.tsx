@@ -73,7 +73,7 @@ function CollectionEntryCard({
           className={`collection-state ${status}`}
           title={status === 'unresolved' ? '不是不可获得，只是当前数据没有可靠的获取记录或坐标。' : undefined}
         >
-          {status === 'owned' ? '已拥有' : status === 'unresolved' ? '无法确认' : '缺失'}
+          {status === 'owned' ? '已拥有' : status === 'unresolved' ? '无法确认' : '未获取'}
         </span>
       </div>
       <div className="collection-entry-meta">
@@ -255,7 +255,7 @@ export function CollectionPage() {
           <div className="collection-filter-label">状态</div>
           {(['all', 'owned', 'missing', 'unresolved'] as const).map((value) => (
             <button key={value} className={`btn small ${status === value ? 'primary' : ''}`} onClick={() => setStatus(value)}>
-              {value === 'all' ? '全部' : value === 'owned' ? '已拥有' : value === 'missing' ? '缺失' : '无法确认'}
+              {value === 'all' ? '全部' : value === 'owned' ? '已拥有' : value === 'missing' ? '未获取' : '无法确认'}
             </button>
           ))}
           <div className="collection-filter-label">版本</div>
