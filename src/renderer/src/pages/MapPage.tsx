@@ -419,25 +419,26 @@ export function MapPage() {
             ctx.stroke();
             ctx.restore();
           }
-          const npcRadius = 5 * markerScale;
           ctx.fillStyle = 'rgba(12, 26, 19, 0.55)';
           ctx.beginPath();
-          ctx.arc(x, y, npcRadius * 1.55, 0, Math.PI * 2);
+          ctx.arc(x, y, 7.8 * markerScale, 0, Math.PI * 2);
           ctx.fill();
           ctx.fillStyle = '#67d2a3';
           ctx.strokeStyle = 'rgba(10, 31, 23, 0.96)';
-          ctx.lineWidth = Math.max(1.3, 1.2 * markerScale);
+          ctx.lineWidth = Math.max(1.2, 1.1 * markerScale);
+          // 半身人像：头部 + 肩部轮廓
           ctx.beginPath();
-          ctx.moveTo(x, y - npcRadius);
-          ctx.lineTo(x + npcRadius * 0.9, y + npcRadius * 0.72);
-          ctx.lineTo(x - npcRadius * 0.9, y + npcRadius * 0.72);
+          ctx.arc(x, y - 2.6 * markerScale, 1.8 * markerScale, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(x - 4.2 * markerScale, y + 1.3 * markerScale);
+          ctx.quadraticCurveTo(x - 3.4 * markerScale, y - 0.7 * markerScale, x - 1.7 * markerScale, y - 0.7 * markerScale);
+          ctx.lineTo(x + 1.7 * markerScale, y - 0.7 * markerScale);
+          ctx.quadraticCurveTo(x + 3.4 * markerScale, y - 0.7 * markerScale, x + 4.2 * markerScale, y + 1.3 * markerScale);
           ctx.closePath();
           ctx.fill();
           ctx.stroke();
-          ctx.fillStyle = '#d8ffe9';
-          ctx.beginPath();
-          ctx.arc(x, y + npcRadius * 0.26, Math.max(1.1, markerScale), 0, Math.PI * 2);
-          ctx.fill();
           ctx.lineWidth = markerLineWidth;
           if (pin.tracked) {
             ctx.beginPath();
@@ -899,7 +900,7 @@ export function MapPage() {
         <div className="row map-toolbar" style={{ marginBottom: 10 }}>
           {layerButton('grace', `✦ 赐福 ${counts.grace}`)}
           {layerButton('boss', `☠ Boss ${counts.boss}`)}
-          {layerButton('npc', `▲ NPC ${counts.npc}`)}
+          {layerButton('npc', `人 NPC ${counts.npc}`)}
           {layerButton('blood', `🩸 血迹 ${counts.blood}`)}
           {layerButton('custom', `◆ 标记 ${customMarkers.filter((m) => m.master === master).length}`)}
           {trackedNpcPin && (
@@ -1137,7 +1138,7 @@ export function MapPage() {
           <span><span style={{ color: '#5a4826' }}>●</span> 未点亮</span>
           <span><span style={{ color: '#e0442a' }}>☠</span> 已讨伐 Boss</span>
           <span><span style={{ color: '#694230' }}>☠</span> 未讨伐</span>
-          <span><span style={{ color: '#5fae7e' }}>▲</span> NPC</span>
+          <span><span style={{ color: '#5fae7e' }}>人</span> NPC</span>
           {trackedQuestNpc && (
             <button className="map-track-clear" onClick={() => setTrackedQuestNpc(null)}>
               取消追踪:{trackedQuestNpc}
