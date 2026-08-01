@@ -1,0 +1,61 @@
+import { readFileSync } from 'node:fs';
+
+const page = readFileSync(new URL('../src/renderer/src/pages/MapPage.tsx', import.meta.url), 'utf8');
+const styles = readFileSync(new URL('../src/renderer/src/styles.css', import.meta.url), 'utf8');
+const tiles = readFileSync(new URL('../src/renderer/src/lib/map-tiles.ts', import.meta.url), 'utf8');
+
+function check(condition: boolean, message: string): void {
+  if (!condition) throw new Error(message);
+}
+
+check(page.includes("import { fuzzyBestScore } from '../lib/fuzzy-search.ts'"), '地图搜索应使用模糊匹配评分。');
+check(page.includes('fuzzyBestScore(query, pin.name'), '地图搜索结果应按名称、详情和类型模糊匹配。');
+check(page.includes("addEventListener('wheel', handleCanvasWheel, { passive: false })"), '地图滚轮监听必须可阻止页面滚动。');
+check(page.includes('event.preventDefault();') && page.includes('event.stopPropagation();'), '地图滚轮只能缩放地图。');
+check(page.includes('const minScaleRef = useRef'), '地图应保存 cover 视野的最小缩放基准。');
+check(page.includes('const lastCanvasSizeRef = useRef'), '地图应只在画布尺寸实际变化时重新适配。');
+check(page.includes('const fitView = useCallback'), '母图切换应重置为覆盖画布的初始视野。');
+check(page.includes('Math.max(w / extent.width, h / extent.height)'), '地图初始视野应使用有效瓦片边界的 cover 缩放并铺满画布。');
+check(tiles.includes('export function getMapExtent'), '地图瓦片模块应提供每张母图的实际有效边界。');
+check(tiles.includes('x: bounds.left') && tiles.includes('y: bounds.top'), '地图有效边界应保留瓦片左上角偏移。');
+check(page.includes('const extent = getMapExtent(master);'), '地图适配应根据当前母图的有效瓦片边界计算。');
+check(page.includes('extent.x + extent.width / 2'), '地图适配应围绕有效瓦片包围框中心定位。');
+check(page.includes('clampMapPosition();'), '拖拽和缩放后应限制视图，避免露出无瓦片的黑边。');
+check(page.includes('drawRef.current();'), '稳定的视图适配回调应通过 ref 触发最新绘制。');
+check(page.includes('new ResizeObserver((entries) =>'), '画布尺寸观察器应读取实际尺寸变化。');
+check(page.includes('clampScale(view.scale * factor)'), '按钮和滚轮缩放应共享 cover 基准限制。');
+check(page.includes('className="map-canvas-shell"'), '地图应使用自适应画布容器。');
+check(styles.includes('.map-canvas-shell') && styles.includes('height: clamp('), '地图画布应铺满稳定的矩形可用区域。');
+check(!/\.map-canvas-shell\s*\{[^}]*aspect-ratio:/s.test(styles), '地图画布不应再被锁定为正方形。');
+check(page.includes("const [graceView, setGraceView] = useState<GraceView>('all')"), '地图应维护赐福显示范围。');
+check(page.includes("buildGraceRegionLights(pins)"), '地图应按当前赐福状态计算区域光脉。');
+check(page.includes("graceViewButton('current-map'"), '地图应提供当前地图赐福筛选。');
+check(page.includes('findNearestUnlitGrace('), '地图应计算同图最近未点亮赐福。');
+check(page.includes('非导航'), '直线距离提示必须明确不代表导航路线。');
+check(page.includes('pin.flagId === lastRestedFlagId'), '最后休息赐福应使用独立地图光圈强调。');
+check(page.includes('ctx.rotate((pin.heading ?? 0) - Math.PI / 2)'), '玩家位置应使用存档朝向绘制方向标记。');
+check(styles.includes('.map-grace-filter'), '赐福光脉筛选应有稳定的地图工具栏样式。');
+check(page.includes('const hasCompleteFrameRef = useRef(false);'), '地图应记录当前母图是否已有完整帧。');
+check(page.includes('let pendingTiles = false;'), '地图应在清屏前汇总可视瓦片的加载状态。');
+check(page.includes('if (pendingTiles && !resized && hasCompleteFrameRef.current && lastDrawnMasterRef.current === master) return;'), '目标缩放层级仍在加载时应保留同母图上一帧，避免闪黑。');
+check(page.includes('const pixelWidth = Math.round(w * dpr);'), '画布物理宽度必须取整，避免小数 DPR 下每次重绘都触发清屏。');
+check(page.includes('const pixelHeight = Math.round(h * dpr);'), '画布物理高度必须取整，避免小数 DPR 下每次重绘都触发清屏。');
+check(page.includes('ctx.setTransform(scaleX, 0, 0, scaleY, 0, 0);'), '画布绘制必须使用实际取整后的像素比。');
+check(page.includes('function markerScaleFor(scale: number, minimumScale: number)'), '地图标记应依据地图缩放计算显示尺寸。');
+check(page.includes('const markerScale = markerScaleFor(scale, minScaleRef.current);'), '绘制地图标记应使用缩放后的尺寸。');
+check(page.includes('const hitRadius = 13 * markerScaleFor(scale, minScaleRef.current);'), '标记命中范围应与放大后的图标同步。');
+check(page.includes('const dormantGraceHeight = 7.2 * markerScale;'), '未点亮赐福应使用独立且可见的空心火焰轮廓。');
+check(page.includes('ctx.bezierCurveTo(x - dormantGraceWidth'), '未点亮赐福应沿用赐福火焰形态。');
+check(!page.includes('unlitGraceRadius * 0.85'), '未点亮赐福不应继续显示为叉号。');
+check(page.includes('const bossSkullRadius = 6 * markerScale;'), 'Boss 应使用随地图缩放的骷髅头标记。');
+check(page.includes('ctx.ellipse(x - bossSkullRadius * 0.34'), 'Boss 骷髅头应绘制可辨识的眼窝。');
+check(!page.includes('ctx.rect(x - r, y - r, r * 2, r * 2);'), 'Boss 不应继续显示为方块。');
+check(page.includes("ctx.fillStyle = '#67d2a3';"), 'NPC 图标应使用高对比颜色。');
+check(page.includes('const hoverTooltipRef = useRef'), '悬停点位标签应保留浮层元素引用以测量实际尺寸。');
+check(page.includes('const updateHoverTooltipPosition = useCallback'), '悬停点位标签应根据图标坐标计算浮层位置。');
+check(page.includes('hoverTooltipPosition'), '悬停点位标签应使用动态计算的位置。');
+check(page.includes('hover && hover.master === master'), '悬停点位标签只应在所属母图中显示。');
+check(page.includes('updateHoverTooltipPosition();'), '拖拽或缩放地图后，悬停点位标签应继续跟随图标。');
+check(!page.includes('selectedTooltipPosition'), '普通点位详情不应再依赖点击后显示。');
+
+console.log('地图交互静态测试通过');
