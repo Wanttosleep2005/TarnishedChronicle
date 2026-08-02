@@ -12,6 +12,7 @@ if ($sourceCandidates.Count -ne 1) {
 }
 $sourceBook = $sourceCandidates[0].FullName
 $output = Join-Path $root 'src/renderer/src/data/generated/spell-calculator-data.ts'
+$catalystOutput = Join-Path $root 'src/renderer/src/data/generated/spell-catalyst-graphs.ts'
 
 function Read-ZipText($zip, [string]$name) {
   $entry = $zip.GetEntry($name)
@@ -56,7 +57,11 @@ function Read-Sheet([string]$path, [string]$sheetFile) {
 
 function NumberOrNull($value) {
   if ([string]::IsNullOrWhiteSpace([string]$value)) { return $null }
-  return [double]::Parse([string]$value, [Globalization.CultureInfo]::InvariantCulture)
+  try {
+    return [double]::Parse([string]$value, [Globalization.CultureInfo]::InvariantCulture)
+  } catch {
+    return $null
+  }
 }
 
 function NumberOrZero($value) {
@@ -71,6 +76,16 @@ function Tags($values) {
     $tags.Add([string]$value)
   }
   return ,$tags
+}
+
+function Column-Name([int]$index) {
+  $name = ''
+  while ($index -gt 0) {
+    $mod = ($index - 1) % 26
+    $name = [char](65 + $mod) + $name
+    $index = [int](($index - 1) / 26)
+  }
+  return $name
 }
 
 $damageColumns = [ordered]@{ physical = 'G'; magic = 'H'; fire = 'I'; lightning = 'J'; holy = 'K' }
@@ -146,6 +161,128 @@ $catalysts = foreach ($row in $catalystRows) {
   }
 }
 
+$catalystParams = @{}
+$usedGraphs = [System.Collections.Generic.SortedSet[int]]::new()
+foreach ($row in $catalystRows) {
+  if (-not $row['A'] -or -not $row['B']) { continue }
+  $itemId = [int]$row['A']
+  $catalystKey = "$itemId`:$($row['C'])"
+  if (-not $catalystParams.ContainsKey($catalystKey)) {
+    $catalystParams.Add($catalystKey, [ordered]@{
+      graphs = [ordered]@{
+        physical = [int](NumberOrZero $row['N'])
+        magic = [int](NumberOrZero $row['O'])
+        fire = [int](NumberOrZero $row['P'])
+        lightning = [int](NumberOrZero $row['Q'])
+        holy = [int](NumberOrZero $row['R'])
+      }
+      statusGraph = [int](NumberOrZero $row['S'])
+      correct = [ordered]@{
+        str = NumberOrZero $row['I']
+        dex = NumberOrZero $row['J']
+        int = NumberOrZero $row['K']
+        fai = NumberOrZero $row['L']
+        arc = NumberOrZero $row['M']
+      }
+    })
+  }
+  foreach ($graphColumn in @('N', 'O', 'P', 'Q', 'R', 'S')) {
+    [void]$usedGraphs.Add([int](NumberOrZero $row[$graphColumn]))
+  }
+}
+
+$curveRows = Read-Sheet $sourceBook 'worksheets/sheet11.xml'
+$curveByGraph = @{}
+foreach ($row in $curveRows) {
+  $graph = [int](NumberOrZero $row['A'])
+  if (-not $usedGraphs.Contains($graph)) { continue }
+  $values = [System.Collections.Generic.List[double]]::new()
+  for ($stat = 1; $stat -le 148; $stat++) {
+    $values.Add([double](NumberOrZero $row[(Column-Name ($stat + 1))]) / 100.0)
+  }
+  $curveByGraph[[string]$graph] = [ordered]@{ values = $values }
+}
+
+$usedWeaponUpIds = [System.Collections.Generic.SortedSet[int]]::new()
+foreach ($row in $catalystRows) {
+  if (-not $row['A'] -or -not $row['B']) { continue }
+  $curve = [int](NumberOrZero $row['H'])
+  $somber = (NumberOrZero $row['G']) -ne 0
+  if ($curve -eq 3000) {
+    [void]$usedWeaponUpIds.Add($curve)
+  } elseif ($somber) {
+    for ($level = 0; $level -le 10; $level++) {
+      [void]$usedWeaponUpIds.Add($curve + $level)
+    }
+  } else {
+    for ($level = 0; $level -le 25; $level++) {
+      [void]$usedWeaponUpIds.Add($curve + $level)
+    }
+  }
+}
+
+$weaponUpRows = Read-Sheet $sourceBook 'worksheets/sheet8.xml'
+$weaponUpByLevel = @{}
+foreach ($row in $weaponUpRows) {
+  $id = [int](NumberOrZero $row['A'])
+  if (-not $usedWeaponUpIds.Contains($id)) { continue }
+  $weaponUpByLevel[[string]$id] = [ordered]@{
+    str = NumberOrZero $row['B']
+    dex = NumberOrZero $row['C']
+    int = NumberOrZero $row['D']
+    fai = NumberOrZero $row['E']
+    arc = NumberOrZero $row['F']
+  }
+}
+
+$usedAtkCorrectIds = [System.Collections.Generic.SortedSet[int]]::new()
+foreach ($row in $catalystRows) {
+  if (-not $row['A'] -or -not $row['B']) { continue }
+  [void]$usedAtkCorrectIds.Add([int](NumberOrZero $row['T']))
+}
+
+$atkCorrectRows = Read-Sheet $sourceBook 'worksheets/sheet6.xml'
+$atkCorrectByType = [ordered]@{
+  physical = @('B', 'C', 'D', 'E', 'F')
+  magic = @('G', 'H', 'I', 'J', 'K')
+  fire = @('L', 'M', 'N', 'O', 'P')
+  lightning = @('Q', 'R', 'S', 'T', 'U')
+  holy = @('V', 'W', 'X', 'Y', 'Z')
+}
+$atkAttrs = @('str', 'dex', 'int', 'fai', 'arc')
+$atkCorrects = @{}
+foreach ($row in $atkCorrectRows) {
+  $id = [int](NumberOrZero $row['A'])
+  if (-not $usedAtkCorrectIds.Contains($id)) { continue }
+  $record = [ordered]@{}
+  foreach ($entry in $atkCorrectByType.GetEnumerator()) {
+    $attrRecord = [ordered]@{}
+    for ($attrIndex = 0; $attrIndex -lt $atkAttrs.Count; $attrIndex++) {
+      $attrRecord[$atkAttrs[$attrIndex]] = (NumberOrZero $row[$entry.Value[$attrIndex]]) -ne 0
+    }
+    $record[$entry.Key] = $attrRecord
+  }
+  $atkCorrects[[string]$id] = $record
+}
+
+$scaduDamageByLevel = @{}
+$scaduTakenByLevel = @{}
+# Scadu blessing growth rows (Curve sheet rows 20/21); kept explicit because
+# PowerShell pipeline indexing of sparse XML rows is not reliable.
+$scaduDamageValues = @(1, 1.1, 1.2, 1.25, 1.3, 1.35, 1.425, 1.5, 1.55, 1.6, 1.65, 1.75, 1.85, 1.875, 1.9, 1.925, 1.95, 1.975, 2, 2.025, 2.05)
+$scaduTakenValues = @(1, 0.90909094, 0.8333333, 0.8, 0.7692308, 0.7407407, 0.7017544, 0.6666667, 0.6451613, 0.625, 0.6060606, 0.5714286, 0.5405405, 0.53333336, 0.5263158, 0.5194805, 0.51282054, 0.5063291, 0.5, 0.49382716, 0.4878049)
+for ($level = 0; $level -le 20; $level++) {
+  $scaduDamageByLevel[[string]$level] = $scaduDamageValues[$level]
+  $scaduTakenByLevel[[string]$level] = $scaduTakenValues[$level]
+}
+$scaduGrowth = [ordered]@{}
+for ($level = 0; $level -le 20; $level++) {
+  $scaduGrowth[[string]$level] = [ordered]@{
+    damageMultiplier = $scaduDamageByLevel[[string]$level]
+    damageTakenMultiplier = $scaduTakenByLevel[[string]$level]
+  }
+}
+
 $header = @'
 // @generated from the local spell calculator workbook; do not edit by hand.
 // Regenerate with: powershell -ExecutionPolicy Bypass -File scripts/extract-spell-calculator-data.ps1
@@ -195,5 +332,56 @@ $payload = [ordered]@{ spells = @($spells); buffs = @($buffs); catalysts = @($ca
 $json = $payload | ConvertTo-Json -Compress -Depth 10
 $body = "export const SPELL_CALCULATOR_ATTACKS: readonly SpellCalculatorAttack[] = $($json | ConvertFrom-Json | Select-Object -ExpandProperty spells | ConvertTo-Json -Compress -Depth 10) as const;`nexport const SPELL_CALCULATOR_BUFFS: readonly SpellCalculatorBuff[] = $($json | ConvertFrom-Json | Select-Object -ExpandProperty buffs | ConvertTo-Json -Compress -Depth 10) as const;`nexport const SPELL_CALCULATOR_CATALYSTS: readonly SpellCalculatorCatalyst[] = $($json | ConvertFrom-Json | Select-Object -ExpandProperty catalysts | ConvertTo-Json -Compress -Depth 10) as const;`n"
 [IO.File]::WriteAllText($output, $header + $body, [Text.UTF8Encoding]::new($false))
+
+$catalystHeader = @'
+// @generated from the local spell calculator workbook; do not edit by hand.
+// Regenerate with: powershell -ExecutionPolicy Bypass -File scripts/extract-spell-calculator-data.ps1
+
+export interface SpellCatalystParams {
+  readonly graphs: Readonly<{
+    physical: number;
+    magic: number;
+    fire: number;
+    lightning: number;
+    holy: number;
+  }>;
+  readonly statusGraph: number;
+  readonly correct: Readonly<{ str: number; dex: number; int: number; fai: number; arc: number }>;
+}
+
+export interface SpellCurveGraph {
+  readonly values: readonly number[];
+}
+
+export interface SpellWeaponUpGrowth {
+  readonly str: number;
+  readonly dex: number;
+  readonly int: number;
+  readonly fai: number;
+  readonly arc: number;
+}
+
+export interface SpellAtkCorrect {
+  readonly physical: Readonly<{ str: boolean; dex: boolean; int: boolean; fai: boolean; arc: boolean }>;
+  readonly magic: Readonly<{ str: boolean; dex: boolean; int: boolean; fai: boolean; arc: boolean }>;
+  readonly fire: Readonly<{ str: boolean; dex: boolean; int: boolean; fai: boolean; arc: boolean }>;
+  readonly lightning: Readonly<{ str: boolean; dex: boolean; int: boolean; fai: boolean; arc: boolean }>;
+  readonly holy: Readonly<{ str: boolean; dex: boolean; int: boolean; fai: boolean; arc: boolean }>;
+}
+
+export interface SpellScaduGrowth {
+  readonly damageMultiplier: number;
+  readonly damageTakenMultiplier: number;
+}
+
+'@
+$paramsJson = $catalystParams | ConvertTo-Json -Compress -Depth 10
+$curvesJson = $curveByGraph | ConvertTo-Json -Compress -Depth 10
+$weaponUpJson = $weaponUpByLevel | ConvertTo-Json -Compress -Depth 10
+$atkCorrectJson = $atkCorrects | ConvertTo-Json -Compress -Depth 10
+$scaduJson = $scaduGrowth | ConvertTo-Json -Compress -Depth 10
+$catalystBody = "export const SPELL_CATALYST_PARAMS: Readonly<Record<string, SpellCatalystParams>> = $paramsJson;`nexport const SPELL_CURVE_GRAPHS: Readonly<Record<number, SpellCurveGraph>> = $curvesJson;`nexport const SPELL_WEAPON_UP_GROWTH: Readonly<Record<number, SpellWeaponUpGrowth>> = $weaponUpJson;`nexport const SPELL_ATK_CORRECTS: Readonly<Record<number, SpellAtkCorrect>> = $atkCorrectJson;`nexport const SPELL_SCADU_GROWTH: Readonly<Record<number, SpellScaduGrowth>> = $scaduJson;`n"
+[IO.File]::WriteAllText($catalystOutput, $catalystHeader + $catalystBody, [Text.UTF8Encoding]::new($false))
 Write-Output "Generated $output"
-Write-Output "Spells: $(@($spells).Count); buffs: $(@($buffs).Count); catalysts: $(@($catalysts).Count)"
+Write-Output "Generated $catalystOutput"
+Write-Output "Spells: $(@($spells).Count); buffs: $(@($buffs).Count); catalysts: $(@($catalysts).Count); curves: $($usedGraphs.Count); weaponUp: $(@($weaponUpByLevel).Count); atkCorrects: $(@($atkCorrects).Count)"

@@ -31,9 +31,16 @@ import {
   weaponCombatForId,
 } from '../../lib/combat-data.ts';
 import { deriveProfile } from '../../lib/derive.ts';
+import { equippedSpellBuffIds, equipmentSpellModifiers } from '../../lib/equipment-effects.ts';
 import { formatNumber } from '../../lib/format.ts';
 import { fuzzyMatch } from '../../lib/fuzzy-search.ts';
 import { useActiveSlot } from '../../lib/save-context.tsx';
+import {
+  catalystKey,
+  catalystMaxUpgrade,
+  estimateSpellAttack,
+  spellCatalystsFor,
+} from '../../lib/spell-calculator.ts';
 import {
   attacksForSkill,
   availableSkillsForWeapon,
@@ -159,6 +166,9 @@ export function CalculatorPage() {
   const [expandedSpellGroups, setExpandedSpellGroups] = useState<ReadonlySet<string>>(() => new Set());
   const [selectedSpellAtkId, setSelectedSpellAtkId] = useState<number | null>(null);
   const [selectedSpellBuffIds, setSelectedSpellBuffIds] = useState<readonly string[]>([]);
+  const [spellCatalystKey, setSpellCatalystKey] = useState('');
+  const [spellUpgrade, setSpellUpgrade] = useState<number | null>(null);
+  const [spellScaduLevel, setSpellScaduLevel] = useState(0);
 
   if (!slot || !profile) return null;
 
@@ -264,6 +274,34 @@ export function CalculatorPage() {
       const bonusMultiplier = applied.reduce((total, effect) => total * effect.multiplier, 1);
       return { type, multiplier, applied, bonusMultiplier, effectiveMultiplier: multiplier * bonusMultiplier };
     });
+  const spellEquipMods = equipmentSpellModifiers(profile);
+  const spellCatalysts = spellCatalystsFor(selectedSpellCalculatorAttack);
+  const chosenSpellCatalystKey = spellCatalysts.some((catalyst) => catalystKey(catalyst) === spellCatalystKey)
+    ? spellCatalystKey
+    : spellCatalysts[0] ? catalystKey(spellCatalysts[0]) : '';
+  const chosenSpellCatalyst = spellCatalysts.find((catalyst) => catalystKey(catalyst) === chosenSpellCatalystKey) ?? null;
+  const ownedSpellUpgrade = chosenSpellCatalyst
+    ? profile.weaponVariants.find((variant) => variant.id === chosenSpellCatalyst.itemId)?.upgrade
+    : null;
+  const chosenSpellUpgrade = chosenSpellCatalyst
+    ? Math.max(0, Math.min(catalystMaxUpgrade(chosenSpellCatalyst), spellUpgrade ?? ownedSpellUpgrade ?? catalystMaxUpgrade(chosenSpellCatalyst)))
+    : 0;
+  const spellEstimate = selectedSpellCalculatorAttack && chosenEnemy && chosenSpellCatalyst
+    ? estimateSpellAttack(
+      spellEquipMods.attrs,
+      selectedSpellCalculatorAttack,
+      chosenSpellCatalyst,
+      chosenSpellUpgrade,
+      chosenEnemy,
+      selectedSpellBuffs,
+      {
+        newGameCycle,
+        scaduLevel: spellScaduLevel,
+        focusCostMultiplier: spellEquipMods.focusCost,
+        damageMultipliers: spellEquipMods.damageMultipliers,
+      },
+    )
+    : null;
   const equipmentNames = new Set([
     ...profile.equipment.talismans,
     ...profile.equipment.armor,
@@ -271,13 +309,7 @@ export function CalculatorPage() {
   const offhandNames = new Set(profile.equipment.armaments
     .filter((item) => item.slotLabel.startsWith('左手'))
     .map((item) => item.display.replace(/ \+\d+$/, '')));
-  const equippedSpellBonusIds = SPELL_CALCULATOR_BUFFS
-    .filter((buff) => {
-      const names = buff.name.replace('（副手）', '').split('/');
-      const source = buff.category === '副手类buff' ? offhandNames : equipmentNames;
-      return names.some((name) => source.has(name));
-    })
-    .map((buff) => buff.id);
+  const equippedSpellBonusIds = equippedSpellBuffIds(profile);
   const equippedSkillBonusIds = SKILL_BUFFS
     .filter((buff) => {
       const names = buff.name.replace('（副手）', '').split('/');
@@ -578,6 +610,56 @@ export function CalculatorPage() {
           ))}
           <span className="pill">显示 {visibleSpellGroups.length} / {SPELL_COMBAT_GROUPS.length}</span>
         </div>
+        <div className="row calculator-enemy-search">
+          <input
+            className="input"
+            type="search"
+            aria-label="搜索法术敌人"
+            placeholder="搜索敌人中文、英文、变体或地区"
+            value={enemySearch}
+            onChange={(event) => setEnemySearch(event.target.value)}
+          />
+          <span className="pill">{filteredEnemies.length} / {PLAYABLE_ENEMIES.length}</span>
+        </div>
+        <div className="row combat-controls spell-calculator-controls">
+          <select
+            className="select"
+            aria-label="法术触媒"
+            value={chosenSpellCatalystKey}
+            disabled={spellCatalysts.length === 0}
+            onChange={(event) => { setSpellCatalystKey(event.target.value); setSpellUpgrade(null); }}
+          >
+            {spellCatalysts.length === 0
+              ? <option value="">没有匹配触媒</option>
+              : spellCatalysts.map((catalyst) => <option key={catalystKey(catalyst)} value={catalystKey(catalyst)}>{catalyst.name} · {catalyst.kind}</option>)}
+          </select>
+          <label className="calculator-upgrade"><span>强化</span><input
+            className="input"
+            type="number"
+            min={0}
+            max={chosenSpellCatalyst ? catalystMaxUpgrade(chosenSpellCatalyst) : 0}
+            value={chosenSpellUpgrade}
+            disabled={!chosenSpellCatalyst}
+            onChange={(event) => setSpellUpgrade(Number(event.target.value))}
+          /></label>
+          <label className="calculator-upgrade"><span>幽影树</span><select className="select" aria-label="幽影树庇佑等级" value={spellScaduLevel} onChange={(event) => setSpellScaduLevel(Number(event.target.value))}>
+            {Array.from({ length: 21 }, (_, level) => <option key={level} value={level}>庇佑 +{level}</option>)}
+          </select></label>
+          <select
+            className="select"
+            aria-label="法术敌人"
+            value={chosenEnemy?.npcParamId ?? ''}
+            disabled={filteredEnemies.length === 0}
+            onChange={(event) => setSelectedEnemyId(Number(event.target.value))}
+          >
+            {filteredEnemies.length === 0
+              ? <option value="">没有匹配的敌人</option>
+              : filteredEnemies.map((enemy, index) => <option key={`${enemy.npcParamId}-${index}`} value={enemy.npcParamId}>{enemy.nameVariant || enemy.name} · {enemy.region}</option>)}
+          </select>
+          <label className="calculator-upgrade calculator-cycle"><span>周目</span><select className="select" aria-label="法术模拟周目" value={newGameCycle} onChange={(event) => setNewGameCycle(Number(event.target.value))}>
+            {NEW_GAME_CYCLES.map((cycle) => <option key={cycle} value={cycle}>{newGameLabel(cycle)}</option>)}
+          </select></label>
+        </div>
         <section className="spell-bonus-config" aria-label="法术增益配置">
           <div className="spell-bonus-heading">
             <div>
@@ -652,6 +734,40 @@ export function CalculatorPage() {
             {!selectedSpellCalculatorAttack && <p className="spell-bonus-warning">该攻击动作没有 v1.16 计算器标签，仍可查看基础倍率，但不会套用专属类别加成。</p>}
           </>}
         </section>
+        {spellEstimate && <>
+          <div className="stat-grid spell-result-grid">
+            <Stat label="单段伤害" value={formatNumber(Math.round(spellEstimate.damagePerHit))} sub="按命中敌人防御结算" />
+            <Stat label="单次施放总伤" value={formatNumber(Math.round(spellEstimate.damageTotal))} sub={`${spellEstimate.attack.hitCount} 段全部命中`} />
+            <Stat label="击杀需施放" value={spellEstimate.hitsToKill ?? '—'} sub="全部段命中" />
+            <Stat label="削韧 / 破韧" value={combatValue(spellEstimate.poiseTotal)} sub={spellEstimate.poiseHits == null ? '不可破韧' : `约 ${spellEstimate.poiseHits} 次施放`} />
+            <Stat label="蓝耗 / 异常" value={spellEstimate.focusCost == null ? '—' : `${Math.round(spellEstimate.focusCost)} FP`} sub={spellEstimate.status || '无异常'} />
+          </div>
+          <div className="combat-summary">
+            <span>{chosenEnemy?.nameVariant || chosenEnemy?.name}</span>
+            <span>{chosenSpellCatalyst?.name ?? '—'} +{chosenSpellUpgrade}</span>
+            <span>{newGameLabel(newGameCycle)} · 幽影树庇佑 +{spellScaduLevel}</span>
+            <span className="desc">按所选法术全部段正面命中计算；暴击、部位与敌人抗性削减未计入。</span>
+          </div>
+          <section className="combat-data-section">
+            <h4>伤害结算 <span>攻击力 → 防御曲线 → 承伤 → 增益 → 幽影树庇佑</span></h4>
+            <div className="combat-table-wrap spell-breakdown-table-wrap">
+              <table className="tbl spell-breakdown-table">
+                <thead><tr><th>属性</th><th className="num">攻击力</th><th className="num">成长</th><th className="num">防御</th><th className="num">承伤</th><th className="num">增益</th><th className="num">装备</th><th className="num">伤害</th></tr></thead>
+                <tbody>{spellEstimate.parts.map((part) => <tr key={part.type}>
+                  <td>{DAMAGE_ZH[part.type] ?? part.type}</td>
+                  <td className="num">{Math.round(part.attack)}</td>
+                  <td className="num">{part.scaling.toFixed(2)}x</td>
+                  <td className="num">{Math.round(part.defense)}</td>
+                  <td className="num">{part.taken.toFixed(2)}x</td>
+                  <td className="num">{part.buffMultiplier.toFixed(3)}x</td>
+                  <td className="num">{part.equipmentMultiplier.toFixed(3)}x</td>
+                  <td className="num"><strong>{formatNumber(Math.round(part.damage))}</strong></td>
+                </tr>)}</tbody>
+              </table>
+            </div>
+            {!spellEstimate.requirementSatisfied && <p className="spell-bonus-warning">属性未满足法术或触媒需求，成长按 0.6 结算。</p>}
+          </section>
+        </>}
         <div className="combat-table-wrap">
           <table className="tbl">
             <thead><tr><th>法术</th><th>攻击倍率</th><th className="num">PvE 削韧</th><th className="num">PvE 削精</th><th aria-label="配置" /></tr></thead>
