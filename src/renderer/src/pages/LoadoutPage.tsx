@@ -8,6 +8,7 @@ import { deriveEquipment, deriveProfile, type EquipmentView } from '../lib/deriv
 import { drawLoadoutShareCard, type LoadoutShareData } from '../lib/loadout-share-card.ts';
 import { useActiveSlot, useSaveContext } from '../lib/save-context.tsx';
 import { profileAttrs, STANDARD_AFFINITY, weaponAffinityLabel, weaponPanelAt } from '../lib/weapon-ar.ts';
+import { affinityAvailableForSave, whetbladeNameForAffinity } from '../lib/weapon-whetblades.ts';
 import { fuzzyMatch } from '../lib/fuzzy-search.ts';
 
 type AttrKey = 'vig' | 'mnd' | 'end' | 'str' | 'dex' | 'int' | 'fai' | 'arc';
@@ -82,6 +83,8 @@ interface WeaponVariant {
   id: number;
   label: string;
   owned: boolean;
+  available: boolean;
+  whetbladeName: string | null;
 }
 
 function nameFor(kind: CatalogKind, id: number): string {
@@ -219,6 +222,8 @@ export function LoadoutPage() {
           id: weapon.id,
           label: weaponAffinityLabel(weapon, base),
           owned: ownedWeaponVariantIds.has(weapon.id),
+          available: affinityAvailableForSave(weapon.id - base.id, profile.ownedGoodsIds),
+          whetbladeName: whetbladeNameForAffinity(weapon.id - base.id),
         })),
       }];
     });
@@ -425,10 +430,10 @@ export function LoadoutPage() {
           <div className="loadout-results">{visibleCatalog.map((item) => {
             const selectedVariantId = activeSlot === 'rightWeapon' ? current.rightWeapon : activeSlot === 'leftWeapon' ? current.leftWeapon : null;
             const preferredVariant = item.weaponVariants?.find((variant) => variant.id === selectedVariantId)
-              ?? (onlyOwned ? item.weaponVariants?.find((variant) => variant.owned) : undefined)
+              ?? (onlyOwned ? item.weaponVariants?.find((variant) => variant.owned && variant.available) : undefined)
               ?? item.weaponVariants?.find((variant) => variant.label === STANDARD_AFFINITY)
               ?? item.weaponVariants?.[0];
-            return item.kind === 'weapon' && item.weaponVariants ? <article className="loadout-weapon-group" key={`${item.kind}-${item.id}`}><button className="loadout-result" onClick={() => preferredVariant && equip({ ...item, id: preferredVariant.id, name: nameFor('weapon', preferredVariant.id) })}><ItemThumb icon={item.icon} size={34} /><span><strong>{item.name}</strong><small>{item.category} · {item.weight.toFixed(1)} 重量 · {item.weaponVariants.length} 种质变</small></span>{item.owned ? <em>已拥有</em> : <i>未拥有</i>}</button>{item.weaponVariants.length > 1 && <details className="loadout-affinities"><summary>可质变 {item.weaponVariants.length} 种</summary><div>{item.weaponVariants.map((variant) => <button key={variant.id} type="button" className={variant.id === selectedVariantId ? 'is-selected' : ''} onClick={() => equip({ ...item, id: variant.id, name: nameFor('weapon', variant.id) })}>{variant.label}{variant.owned && <small>已拥有</small>}</button>)}</div></details>}</article> : <button className="loadout-result" key={`${item.kind}-${item.id}`} onClick={() => equip(item)}><ItemThumb icon={item.icon} size={34} /><span><strong>{item.name}</strong><small>{item.en} · {item.category} · {item.weight.toFixed(1)} 重量</small></span>{item.owned ? <em>已拥有</em> : <i>未拥有</i>}</button>;
+            return item.kind === 'weapon' && item.weaponVariants ? <article className="loadout-weapon-group" key={`${item.kind}-${item.id}`}><button className="loadout-result" onClick={() => preferredVariant && equip({ ...item, id: preferredVariant.id, name: nameFor('weapon', preferredVariant.id) })}><ItemThumb icon={item.icon} size={34} /><span><strong>{item.name}</strong><small>{item.category} · {item.weight.toFixed(1)} 重量 · {item.weaponVariants.length} 种质变</small></span>{item.owned ? <em>已拥有</em> : <i>未拥有</i>}</button>{item.weaponVariants.length > 1 && <details className="loadout-affinities"><summary>质变 {item.weaponVariants.length} 种</summary><div>{item.weaponVariants.map((variant) => <button key={variant.id} type="button" title={variant.available ? undefined : `缺少${variant.whetbladeName ?? '砥石'}`} className={variant.id === selectedVariantId ? 'is-selected' : ''} onClick={() => equip({ ...item, id: variant.id, name: nameFor('weapon', variant.id) })}>{variant.label}{variant.available ? <small>已拥有</small> : <small className="is-missing">未拥有</small>}</button>)}</div></details>}</article> : <button className="loadout-result" key={`${item.kind}-${item.id}`} onClick={() => equip(item)}><ItemThumb icon={item.icon} size={34} /><span><strong>{item.name}</strong><small>{item.en} · {item.category} · {item.weight.toFixed(1)} 重量</small></span>{item.owned ? <em>已拥有</em> : <i>未拥有</i>}</button>;
           })}{matchingCatalog.length === 0 && <div className="notice">没有符合条件的装备。</div>}</div>
           {visibleCatalog.length < matchingCatalog.length && <div className="loadout-result-actions"><button className="btn small" onClick={() => setResultLimit((limit) => Math.min(matchingCatalog.length, limit + 120))}>继续加载 120 条</button><button className="btn small" onClick={() => setResultLimit(matchingCatalog.length)}>显示全部 {matchingCatalog.length} 条</button></div>}
         </Card>

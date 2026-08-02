@@ -5799,6 +5799,9 @@ textarea.input {
   color: var(--moss);
   font-size: 9px;
 }
+.loadout-affinities button small.is-missing {
+  color: var(--crimson);
+}
 
 .map-toolbar {
   align-items: center;
