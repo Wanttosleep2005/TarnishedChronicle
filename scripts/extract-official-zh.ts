@@ -179,14 +179,19 @@ writeFileSync(OUT, body, 'utf-8');
 console.log(`已写出 ${OUT}`);
 
 // ———— 物品官方名(id → 简中,按类别;类别名对齐 translations.ts 的 CATS_BY_KIND) ————
-const ITEM_FMG_TO_CATEGORY: Record<string, string> = {
-  WeaponName: 'weapons-shields',
-  ProtectorName: 'armor',
-  AccessoryName: 'talismans',
-  GemName: 'ashes-of-war',
-  GoodsName: 'tools',
-  MagicName: 'spells',
-};
+const ITEM_FMGS = [
+  { category: 'weapons-shields', name: 'WeaponName', info: 'WeaponInfo', caption: 'WeaponCaption' },
+  { category: 'armor', name: 'ProtectorName', info: 'ProtectorInfo', caption: 'ProtectorCaption' },
+  { category: 'talismans', name: 'AccessoryName', info: 'AccessoryInfo', caption: 'AccessoryCaption' },
+  { category: 'ashes-of-war', name: 'GemName', info: 'GemInfo', caption: 'GemCaption' },
+  { category: 'tools', name: 'GoodsName', info: 'GoodsInfo', caption: 'GoodsCaption' },
+  { category: 'spells', name: 'MagicName', info: 'MagicInfo', caption: 'MagicCaption' },
+] as const;
+
+interface OfficialItemText {
+  readonly summary: string;
+  readonly description: readonly string[];
+}
 
 function mergeZhById(target: Map<number, string>, source: Map<number, string> | undefined): void {
   if (!source) return;
@@ -197,23 +202,59 @@ function mergeZhById(target: Map<number, string>, source: Map<number, string> | 
   }
 }
 
+function splitDescription(raw: string | undefined): string[] {
+  const text = raw?.replace(/\r\n?/g, '\n').trim();
+  return text ? text.split('\n') : [];
+}
+
+function mergeTextById(
+  target: Map<number, OfficialItemText>,
+  info: Map<number, string> | undefined,
+  caption: Map<number, string> | undefined,
+): void {
+  const ids = new Set<number>([...(info?.keys() ?? []), ...(caption?.keys() ?? [])]);
+  for (const id of ids) {
+    if (target.has(id)) continue;
+    const summary = clean(info?.get(id) ?? '');
+    const description = splitDescription(caption?.get(id));
+    if (!summary && description.length === 0) continue;
+    target.set(id, { summary, description });
+  }
+}
+
 const itemsByCategory = new Map<string, Map<number, string>>();
-for (const [fmgBase, category] of Object.entries(ITEM_FMG_TO_CATEGORY)) {
+const itemTextByCategory = new Map<string, Map<number, OfficialItemText>>();
+for (const { category, name, info, caption } of ITEM_FMGS) {
   const merged = new Map<number, string>();
+  const text = new Map<number, OfficialItemText>();
   // 顺序:DLC02 > DLC01 > DLC包内基础表 > 本体(先到先得,新内容优先)
-  mergeZhById(merged, pick(dlcItemZh, `${fmgBase}_dlc02.fmg`));
-  mergeZhById(merged, pick(dlcItemZh, `${fmgBase}_dlc01.fmg`));
-  mergeZhById(merged, pick(dlcItemZh, `${fmgBase}.fmg`));
-  mergeZhById(merged, pick(baseItemZh, `${fmgBase}.fmg`));
+  mergeZhById(merged, pick(dlcItemZh, `${name}_dlc02.fmg`));
+  mergeZhById(merged, pick(dlcItemZh, `${name}_dlc01.fmg`));
+  mergeZhById(merged, pick(dlcItemZh, `${name}.fmg`));
+  mergeZhById(merged, pick(baseItemZh, `${name}.fmg`));
+  mergeTextById(text, pick(dlcItemZh, `${info}_dlc02.fmg`), pick(dlcItemZh, `${caption}_dlc02.fmg`));
+  mergeTextById(text, pick(dlcItemZh, `${info}_dlc01.fmg`), pick(dlcItemZh, `${caption}_dlc01.fmg`));
+  mergeTextById(text, pick(dlcItemZh, `${info}.fmg`), pick(dlcItemZh, `${caption}.fmg`));
+  mergeTextById(text, pick(baseItemZh, `${info}.fmg`), pick(baseItemZh, `${caption}.fmg`));
   itemsByCategory.set(category, merged);
+  itemTextByCategory.set(category, text);
   console.log(`物品官方名 [${category}] ${merged.size} 条`);
 }
 
 const ITEMS_OUT = join(ROOT, 'src/renderer/src/data/zh/official-items.generated.ts');
 const itemsBody =
   banner +
+  `export interface OfficialItemText { readonly summary: string; readonly description: readonly string[]; }\n\n` +
   `export const OFFICIAL_ITEM_ZH: Readonly<Record<string, Readonly<Record<number, string>>>> = {` +
   [...itemsByCategory.entries()]
+    .map(([cat, map]) => {
+      const obj = Object.fromEntries([...map.entries()].sort((a, b) => a[0] - b[0]));
+      return `${JSON.stringify(cat)}:${JSON.stringify(obj)}`;
+    })
+    .join(',') +
+  `};\n\n` +
+  `export const OFFICIAL_ITEM_TEXT_ZH: Readonly<Record<string, Readonly<Record<number, OfficialItemText>>>> = {` +
+  [...itemTextByCategory.entries()]
     .map(([cat, map]) => {
       const obj = Object.fromEntries([...map.entries()].sort((a, b) => a[0] - b[0]));
       return `${JSON.stringify(cat)}:${JSON.stringify(obj)}`;

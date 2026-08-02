@@ -4,6 +4,7 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 
 $root = Split-Path -Parent $PSScriptRoot
 $sourceBook = Join-Path $root '倍率文件(Ver.+1.16.2).xlsx'
+$variantBook = Join-Path $root '倍率(App+Ver.+1.16.2)-敌人整合.xlsx'
 $output = Join-Path $root 'src/renderer/src/data/generated/combat-data.ts'
 
 function Read-ZipText($zip, [string]$name) {
@@ -158,6 +159,28 @@ $spellData = foreach ($row in $spellRows) {
 }
 
 $enemyRows = Read-Sheet $sourceBook 'worksheets/sheet36.xml'
+$enemyVariantRows = Read-Sheet $variantBook 'worksheets/sheet13.xml'
+$enemyVariantGroups = @{}
+foreach ($row in $enemyVariantRows) {
+  $npcIdText = ([string]$row.'NpcParam ID').Trim()
+  $mainName = ([string]$row.'主表采用名称').Trim()
+  $variant = ([string]$row.'1.0.26 名称（仅对照，不采用）').Trim()
+  if ([string]::IsNullOrWhiteSpace($npcIdText) -or [string]::IsNullOrWhiteSpace($mainName) -or [string]::IsNullOrWhiteSpace($variant)) { continue }
+  if (-not $enemyVariantGroups.ContainsKey($mainName)) {
+    $enemyVariantGroups[$mainName] = New-Object 'System.Collections.Generic.HashSet[string]'
+  }
+  [void]$enemyVariantGroups[$mainName].Add($variant)
+}
+$enemyVariantById = @{}
+foreach ($row in $enemyVariantRows) {
+  $npcIdText = ([string]$row.'NpcParam ID').Trim()
+  $mainName = ([string]$row.'主表采用名称').Trim()
+  $variant = ([string]$row.'1.0.26 名称（仅对照，不采用）').Trim()
+  if ([string]::IsNullOrWhiteSpace($npcIdText) -or [string]::IsNullOrWhiteSpace($mainName)) { continue }
+  if ($enemyVariantGroups.ContainsKey($mainName) -and $enemyVariantGroups[$mainName].Count -gt 1 -and -not [string]::IsNullOrWhiteSpace($variant) -and $variant -ne $mainName) {
+    $enemyVariantById[$npcIdText] = $variant
+  }
+}
 $clearCountRows = Read-Sheet $sourceBook 'worksheets/sheet29.xml'
 $defenseColumns = [ordered]@{
   physical = '基础防御 phys'; magic = '基础防御 mag'; fire = '基础防御 fire'; lightning = '基础防御 thunder'; holy = '基础防御 dark'
@@ -223,6 +246,7 @@ $enemyData = foreach ($row in $enemyRows) {
     npcParamId = $npcId
     name = $row.'中文名（官方/Smithbox）'
     nameEn = $row.'English (official/Smithbox)'
+    nameVariant = $(if ($enemyVariantById.ContainsKey([string]$npcId)) { $enemyVariantById[[string]$npcId] } else { '' })
     region = $row.'区域'
     hp = NumberOrNull $row.'常驻后 HP'
     gameClearHpScale = NumberOrNull $row.'GameClear HP 倍率'
@@ -286,6 +310,7 @@ export interface EnemyCombatRow {
   readonly npcParamId: number;
   readonly name: string;
   readonly nameEn: string;
+  readonly nameVariant: string;
   readonly region: string;
   readonly hp: number | null;
   readonly gameClearHpScale: number | null;

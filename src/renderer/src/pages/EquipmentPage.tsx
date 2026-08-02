@@ -1,31 +1,144 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, ItemThumb, PageHead } from '../components/ui.tsx';
 import { zhItemNameByKind } from '../data/zh/translations.ts';
 import { deriveEquipment, deriveInventory, deriveProfile, goodById, type EquipSlotEntry, type ResolvedItem } from '../lib/derive.ts';
 import { classifyEntry, GAME_TABS, type GameTab } from '../lib/inventory-classify.ts';
 import { useActiveSlot } from '../lib/save-context.tsx';
-import { DAMAGE_ZH, weaponPanel } from '../lib/weapon-ar.ts';
+import { ATTR_ZH, DAMAGE_ZH, weaponPanel, weaponScalingGradeChanges, weaponScalingGradesAt } from '../lib/weapon-ar.ts';
 import { fuzzyMatch } from '../lib/fuzzy-search.ts';
 
-function EquipCell({ entry }: { entry: EquipSlotEntry }) {
+function itemKey(item: ResolvedItem): string {
+  return `${item.kind}:${item.paramId}:${item.upgrade}`;
+}
+
+const ITEM_KIND_LABEL: Record<ResolvedItem['kind'], string> = {
+  weapon: '武器',
+  armor: '防具',
+  talisman: '护符',
+  goods: '道具',
+  aow: '战灰',
+  empty: '物品',
+};
+
+type WeaponScalingGrades = NonNullable<ReturnType<typeof weaponScalingGradesAt>>;
+const SCALING_ATTR_ORDER = ['str', 'dex', 'int', 'fai', 'arc'] as const;
+
+function scalingGradeText(grades: WeaponScalingGrades | null): string {
+  const parts = SCALING_ATTR_ORDER
+    .map((attr) => (grades?.[attr] ? `${ATTR_ZH[attr]} ${grades[attr]}` : null))
+    .filter(Boolean)
+    .join(' · ');
+  return parts || '无补正';
+}
+
+function WeaponScalingDetails({ item }: { item: ResolvedItem }) {
+  const changes = weaponScalingGradeChanges(item.paramId);
+  if (!changes || changes.length === 0) return null;
+  const current = weaponScalingGradesAt(item.paramId, item.upgrade) ?? changes[changes.length - 1]?.grades ?? null;
   return (
-    <div className="equip-item">
-      <ItemThumb icon={entry.icon} />
-      <div>
-        <div className="equip-slot-label">{entry.slotLabel}</div>
-        <div className="equip-name">{entry.display}</div>
-        {entry.ashOfWar && <div className="equip-extra">战灰:{entry.ashOfWar}</div>}
-        {entry.en && entry.display !== entry.en && entry.kind !== 'empty' && (
-          <div className="en-name">{entry.en}</div>
-        )}
+    <section className="weapon-scaling-detail" aria-label="能力补正">
+      <h3>能力补正</h3>
+      <p><strong>当前 +{item.upgrade}</strong> · {scalingGradeText(current)}</p>
+      <div className="weapon-scaling-changes">
+        {changes.map((row) => (
+          <span key={row.upgrade} className={row.upgrade === item.upgrade ? 'is-current' : undefined}>
+            +{row.upgrade} {scalingGradeText(row.grades)}
+          </span>
+        ))}
       </div>
+    </section>
+  );
+}
+
+function ItemDetailDialog({ item, onClose }: { item: ResolvedItem; onClose: () => void }) {
+  const hasDescription = item.description.some((line) => line.trim().length > 0);
+  const titleId = `item-dialog-title-${item.kind}-${item.paramId}-${item.upgrade}`;
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  return (
+    createPortal(
+      <div
+        className="item-dialog-backdrop"
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) onClose();
+        }}
+      >
+        <section className="item-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+          <header className="item-dialog-head">
+            <div className="item-dialog-heading">
+              <div className="item-dialog-meta">{ITEM_KIND_LABEL[item.kind]} · 物品详情</div>
+              <h2 id={titleId}>{item.display}</h2>
+              {item.en && item.display !== item.en && <p>{item.en}</p>}
+            </div>
+            <button type="button" className="item-dialog-close" aria-label="关闭物品详情" onClick={onClose} autoFocus>
+              <span aria-hidden="true">×</span>
+            </button>
+          </header>
+          <div className="item-dialog-body">
+            <aside className="item-dialog-profile">
+              <ItemThumb icon={item.icon} size={96} />
+              {item.summary && <p className="item-dialog-summary">{item.summary}</p>}
+            </aside>
+            <section className="item-dialog-description">
+              {item.kind === 'weapon' && <WeaponScalingDetails item={item} />}
+              <h3>物品说明</h3>
+              {hasDescription ? item.description.map((line, index) => (
+                line.trim() ? <p key={index}>{line}</p> : <div key={index} className="item-dialog-spacer" aria-hidden="true" />
+              )) : <p className="undone">暂无可用的说明文本。</p>}
+            </section>
+          </div>
+        </section>
+      </div>,
+      document.body,
+    )
+  );
+}
+
+function EquipCell({ entry, selected, onSelect }: { entry: EquipSlotEntry; selected: boolean; onSelect: (item: ResolvedItem) => void }) {
+  return (
+    <div className="equip-entry">
+      <button
+        type="button"
+        className={`equip-item${selected ? ' is-selected' : ''}`}
+        disabled={entry.kind === 'empty'}
+        aria-pressed={selected}
+        onClick={() => onSelect(entry)}
+      >
+        <ItemThumb icon={entry.icon} />
+        <div>
+          <div className="equip-slot-label">{entry.slotLabel}</div>
+          <div className="equip-name">{entry.display}</div>
+          {entry.en && entry.display !== entry.en && entry.kind !== 'empty' && (
+            <div className="en-name">{entry.en}</div>
+          )}
+        </div>
+      </button>
+      {entry.ashOfWarItem && (
+        <button type="button" className="equip-ash-select" onClick={() => onSelect(entry.ashOfWarItem!)}>
+          战灰：{entry.ashOfWar}
+        </button>
+      )}
     </div>
   );
 }
 
-function SimpleCell({ item, label, count }: { item: ResolvedItem; label?: string; count?: number | null }) {
+function SimpleCell({ item, label, count, selected, onSelect }: { item: ResolvedItem; label?: string; count?: number | null; selected: boolean; onSelect: (item: ResolvedItem) => void }) {
   return (
-    <div className="equip-item">
+    <button
+      type="button"
+      className={`equip-item${selected ? ' is-selected' : ''}`}
+      disabled={item.kind === 'empty'}
+      aria-pressed={selected}
+      onClick={() => onSelect(item)}
+    >
       <ItemThumb icon={item.icon} />
       <div>
         {label && <div className="equip-slot-label">{label}</div>}
@@ -36,7 +149,7 @@ function SimpleCell({ item, label, count }: { item: ResolvedItem; label?: string
           )}
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -51,6 +164,7 @@ export function EquipmentPage({ onOpenCollection }: { onOpenCollection?: () => v
   const [tab, setTab] = useState<TabFilter>('all');
   const [search, setSearch] = useState('');
   const [showStorage, setShowStorage] = useState(true);
+  const [selectedItemKey, setSelectedItemKey] = useState<string | null>(null);
 
   const equipment = useMemo(() => (slot ? deriveEquipment(slot) : null), [slot]);
   const inventory = useMemo(() => (slot ? deriveInventory(slot) : []), [slot]);
@@ -62,6 +176,22 @@ export function EquipmentPage({ onOpenCollection }: { onOpenCollection?: () => v
   const quickItems = equipment.quickItems.filter((q) => q.item.kind !== 'empty');
   const pouch = equipment.pouch.filter((p) => p.kind !== 'empty');
   const arrows = equipment.arrows.filter((a) => a.kind !== 'empty');
+  const equippedAshes = armaments.flatMap((entry) => entry.ashOfWarItem ? [entry.ashOfWarItem] : []);
+  const detailItems = [
+    ...armaments,
+    ...equippedAshes,
+    ...equipment.armor.filter((entry) => entry.kind !== 'empty'),
+    ...talismans,
+    ...equipment.physick,
+    ...equipment.spells,
+    ...quickItems.map((entry) => entry.item),
+    ...equipment.pouch,
+    ...arrows,
+    ...inventory,
+  ].filter((item) => item.kind !== 'empty');
+  const selectedItem = selectedItemKey === null ? null : detailItems.find((item) => itemKey(item) === selectedItemKey) ?? null;
+  const activeItemKey = selectedItem ? itemKey(selectedItem) : null;
+  const selectItem = (item: ResolvedItem) => setSelectedItemKey(itemKey(item));
 
   const filteredInventory = inventory.filter((row) => {
     if (tab !== 'all' && tab !== 'gesture' && classifyEntry(row) !== tab) return false;
@@ -93,7 +223,7 @@ export function EquipmentPage({ onOpenCollection }: { onOpenCollection?: () => v
               const panel = entry.kind === 'weapon' ? weaponPanel(profile, entry.paramId, entry.upgrade) : null;
               return (
                 <div key={entry.slotLabel}>
-                  <EquipCell entry={entry} />
+                  <EquipCell entry={entry} selected={itemKey(entry) === activeItemKey} onSelect={selectItem} />
                   {panel && (
                     <div style={{ margin: '6px 0 0 56px', fontSize: 11.5, lineHeight: 1.8 }}>
                       <span style={{ color: 'var(--gold-2)' }}>
@@ -126,7 +256,7 @@ export function EquipmentPage({ onOpenCollection }: { onOpenCollection?: () => v
         <Card title="防具">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {equipment.armor.map((entry) => (
-              <EquipCell key={entry.slotLabel} entry={entry} />
+              <EquipCell key={entry.slotLabel} entry={entry} selected={itemKey(entry) === activeItemKey} onSelect={selectItem} />
             ))}
           </div>
         </Card>
@@ -134,7 +264,7 @@ export function EquipmentPage({ onOpenCollection }: { onOpenCollection?: () => v
         <Card title="护符" hint={`${talismans.length}/${equipment.talismanSlots} 槽`}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {talismans.length > 0 ? (
-              talismans.map((entry) => <EquipCell key={entry.slotLabel} entry={entry} />)
+              talismans.map((entry) => <EquipCell key={entry.slotLabel} entry={entry} selected={itemKey(entry) === activeItemKey} onSelect={selectItem} />)
             ) : (
               <span className="undone">未佩戴护符</span>
             )}
@@ -147,7 +277,7 @@ export function EquipmentPage({ onOpenCollection }: { onOpenCollection?: () => v
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {equipment.physick.map((item, i) => (
-                  <SimpleCell key={i} item={item} />
+                  <SimpleCell key={i} item={item} selected={itemKey(item) === activeItemKey} onSelect={selectItem} />
                 ))}
               </div>
             </>
@@ -159,7 +289,7 @@ export function EquipmentPage({ onOpenCollection }: { onOpenCollection?: () => v
         <Card title="记忆法术" hint={`${equipment.spells.length} 个`}>
           <div className="equip-grid">
             {equipment.spells.map((spell, i) => (
-              <SimpleCell key={i} item={spell} label={`法术 ${i + 1}`} />
+              <SimpleCell key={i} item={spell} label={`法术 ${i + 1}`} selected={itemKey(spell) === activeItemKey} onSelect={selectItem} />
             ))}
           </div>
         </Card>
@@ -169,13 +299,13 @@ export function EquipmentPage({ onOpenCollection }: { onOpenCollection?: () => v
         <Card title="快捷栏与箭筒">
           <div className="equip-grid">
             {quickItems.map((entry, i) => (
-              <SimpleCell key={`q${i}`} item={entry.item} label="快捷栏" count={entry.count} />
+              <SimpleCell key={`q${i}`} item={entry.item} label="快捷栏" count={entry.count} selected={itemKey(entry.item) === activeItemKey} onSelect={selectItem} />
             ))}
             {pouch.map((item, i) => (
-              <SimpleCell key={`p${i}`} item={item} label="收纳袋" />
+              <SimpleCell key={`p${i}`} item={item} label="收纳袋" selected={itemKey(item) === activeItemKey} onSelect={selectItem} />
             ))}
             {arrows.map((entry) => (
-              <EquipCell key={entry.slotLabel} entry={entry} />
+              <EquipCell key={entry.slotLabel} entry={entry} selected={itemKey(entry) === activeItemKey} onSelect={selectItem} />
             ))}
           </div>
         </Card>
@@ -253,13 +383,15 @@ export function EquipmentPage({ onOpenCollection }: { onOpenCollection?: () => v
             </thead>
             <tbody>
               {filteredInventory.slice(0, 800).map((row, i) => (
-                <tr key={`${row.kind}-${row.paramId}-${row.source}-${i}`}>
+                <tr key={`${row.kind}-${row.paramId}-${row.source}-${i}`} className={itemKey(row) === activeItemKey ? 'is-selected' : undefined}>
                   <td>
                     <ItemThumb icon={row.icon} size={32} />
                   </td>
                   <td>
-                    <div>{row.display}</div>
-                    {row.en && row.display !== row.en && <div className="en-name">{row.en}</div>}
+                    <button type="button" className="inventory-item-select" aria-pressed={itemKey(row) === activeItemKey} onClick={() => selectItem(row)}>
+                      <div>{row.display}</div>
+                      {row.en && row.display !== row.en && <div className="en-name">{row.en}</div>}
+                    </button>
                   </td>
                   <td style={{ color: 'var(--muted)' }}>{TAB_LABEL[classifyEntry(row)]}</td>
                   <td className="num">{row.quantity}</td>
@@ -276,6 +408,8 @@ export function EquipmentPage({ onOpenCollection }: { onOpenCollection?: () => v
         </div>
         )}
       </Card>
+
+      {selectedItem && <ItemDetailDialog item={selectedItem} onClose={() => setSelectedItemKey(null)} />}
     </div>
   );
 }

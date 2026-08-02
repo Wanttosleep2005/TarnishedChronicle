@@ -1,5 +1,8 @@
 import { readFileSync } from 'node:fs';
 
+import { WEAPONS, type Weapon } from '../src/renderer/src/data/generated/weapons.ts';
+import { weaponAffinityLabel } from '../src/renderer/src/lib/weapon-ar.ts';
+
 const page = readFileSync(new URL('../src/renderer/src/pages/LoadoutPage.tsx', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../src/renderer/src/styles.css', import.meta.url), 'utf8');
 
@@ -20,5 +23,27 @@ check(page.includes('type="checkbox"') && page.includes('只看已拥有'), '已
 check(page.includes("onlyOwned ? item.weaponVariants?.find((variant) => variant.owned) : undefined"), '只看已拥有时，点击武器组应优先装备已拥有的质变。');
 check(page.includes('const targetSlot = armorSlotForCategory(item.category);'), '点击防具应按实际部位写入对应槽位。');
 check(page.includes('selectCatalogKind(kind)'), '切换装备分类时应同步选择可用槽位。');
+check(!page.includes('weapon.name.endsWith(base.name)'), '质变中文名不应依赖英文基础名后缀。');
+
+const celebrantBase = WEAPONS.find((weapon) => weapon.name === "Celebrant's Sickle");
+const celebrantHeavy = WEAPONS.find((weapon) => weapon.name === "Celebrant's Heavy Sickle");
+const celebrantFlameArt = WEAPONS.find((weapon) => weapon.name === "Celebrant's Flame Art Sickle");
+check(Boolean(celebrantBase && celebrantHeavy && weaponAffinityLabel(celebrantHeavy, celebrantBase) === '厚重'), '庆典小镰刀厚重质变应显示中文');
+check(Boolean(celebrantBase && celebrantFlameArt && weaponAffinityLabel(celebrantFlameArt, celebrantBase) === '焰术'), '庆典小镰刀焰术质变应显示中文');
+
+const weaponGroups = new Map<number, Weapon[]>();
+for (const weapon of WEAPONS) {
+  if (weapon.id === 110000 || weapon.name === 'DLC dummy') continue;
+  const baseId = weapon.id - (weapon.id % 10000);
+  const variants = weaponGroups.get(baseId) ?? [];
+  variants.push(weapon);
+  weaponGroups.set(baseId, variants);
+}
+for (const [baseId, variants] of weaponGroups) {
+  const base = variants.find((weapon) => weapon.id === baseId) ?? variants[0];
+  for (const variant of variants) {
+    check(!/[A-Za-z]/.test(weaponAffinityLabel(variant, base)), `${variant.name} 的质变中文名仍包含英文`);
+  }
+}
 
 console.log('配装器目录静态测试通过');

@@ -12,7 +12,7 @@ import { SPELLS, type Spell } from '../data/generated/spells.ts';
 import { SPIRIT_ASHES } from '../data/generated/spirit-ashes.ts';
 import { TALISMANS, type Talisman } from '../data/generated/talismans.ts';
 import { WEAPONS, type Weapon } from '../data/generated/weapons.ts';
-import { BOSS_FLAG_ZH, displayBoss, displayPlace, zhItemName, zhItemNameByKind } from '../data/zh/translations.ts';
+import { BOSS_FLAG_ZH, displayBoss, displayPlace, zhItemName, zhItemNameByKind, zhItemTextByKind } from '../data/zh/translations.ts';
 import type { LeanSlot } from '../vendor/save-parser/index.ts';
 import { isFlagSet } from './flags.ts';
 
@@ -94,9 +94,25 @@ export interface ResolvedItem {
   display: string;
   en: string | null;
   icon: number | null;
+  summary: string | null;
+  description: readonly string[];
 }
 
-const EMPTY_ITEM: ResolvedItem = { kind: 'empty', paramId: 0, upgrade: 0, display: '—', en: null, icon: null };
+const EMPTY_ITEM: ResolvedItem = { kind: 'empty', paramId: 0, upgrade: 0, display: '—', en: null, icon: null, summary: null, description: [] };
+
+type ItemTextSource = Pick<ResolvedItem, 'summary' | 'description'>;
+
+function resolvedItemText(
+  kind: 'weapon' | 'armor' | 'talisman' | 'goods' | 'aow' | 'spell',
+  paramId: number,
+  source: ItemTextSource | undefined,
+): ItemTextSource {
+  const localized = zhItemTextByKind(kind, paramId);
+  return {
+    summary: localized?.summary || source?.summary || null,
+    description: localized?.description.length ? localized.description : source?.description ?? [],
+  };
+}
 
 function kindOfGaItemId(itemId: number): ItemKind {
   const cat = (itemId & 0xf0000000) >>> 0;
@@ -112,7 +128,8 @@ function kindOfGaItemId(itemId: number): ItemKind {
 function weaponDisplay(idNoUpgrade: number, upgrade: number): ResolvedItem {
   const affinity = idNoUpgrade % 10000;
   const pureBase = idNoUpgrade - affinity; // 去掉亲和与强化的裸武器 id
-  const en = weaponById.get(idNoUpgrade)?.name ?? weaponById.get(pureBase)?.name ?? null;
+  const weapon = weaponById.get(idNoUpgrade) ?? weaponById.get(pureBase);
+  const en = weapon?.name ?? null;
   const zh = zhItemNameByKind('weapon', pureBase);
   const affinityZh = AFFINITY_ZH[affinity] ?? '';
   const base = zh ? `${affinityZh ? `${affinityZh}·` : ''}${zh}` : (en ?? `未知武器 ${idNoUpgrade}`);
@@ -122,7 +139,8 @@ function weaponDisplay(idNoUpgrade: number, upgrade: number): ResolvedItem {
     upgrade,
     display: upgrade > 0 ? `${base} +${upgrade}` : base,
     en,
-    icon: weaponById.get(idNoUpgrade)?.icon ?? weaponById.get(pureBase)?.icon ?? null,
+    icon: weapon?.icon ?? null,
+    ...resolvedItemText('weapon', idNoUpgrade, weapon),
   };
 }
 
@@ -138,25 +156,29 @@ export function resolveGaItemId(itemId: number): ResolvedItem {
     }
     case 'armor': {
       const id = (itemId ^ GA_ARMOR) >>> 0;
-      const en = armorById.get(id)?.name ?? null;
-      return { kind, paramId: id, upgrade: 0, display: zhItemNameByKind('armor', id) ?? en ?? `未知防具 ${id}`, en, icon: armorById.get(id)?.icon ?? null };
+      const armor = armorById.get(id);
+      const en = armor?.name ?? null;
+      return { kind, paramId: id, upgrade: 0, display: zhItemNameByKind('armor', id) ?? en ?? `未知防具 ${id}`, en, icon: armor?.icon ?? null, ...resolvedItemText('armor', id, armor) };
     }
     case 'talisman': {
       const id = (itemId ^ GA_ACCESSORY) >>> 0;
-      const en = talismanById.get(id)?.name ?? null;
-      return { kind, paramId: id, upgrade: 0, display: zhItemNameByKind('talisman', id) ?? en ?? `未知护符 ${id}`, en, icon: talismanById.get(id)?.icon ?? null };
+      const talisman = talismanById.get(id);
+      const en = talisman?.name ?? null;
+      return { kind, paramId: id, upgrade: 0, display: zhItemNameByKind('talisman', id) ?? en ?? `未知护符 ${id}`, en, icon: talisman?.icon ?? null, ...resolvedItemText('talisman', id, talisman) };
     }
     case 'goods': {
       const id = (itemId ^ GA_ITEM) >>> 0;
       if (SEAMLESS_COOP_INTERNAL_GOODS_IDS.has(id)) return EMPTY_ITEM;
-      const en = goodById.get(id)?.name ?? null;
-      return { kind, paramId: id, upgrade: 0, display: zhItemNameByKind('goods', id) ?? en ?? `未知道具 ${id}`, en, icon: goodById.get(id)?.icon ?? null };
+      const good = goodById.get(id);
+      const en = good?.name ?? null;
+      return { kind, paramId: id, upgrade: 0, display: zhItemNameByKind('goods', id) ?? en ?? `未知道具 ${id}`, en, icon: good?.icon ?? null, ...resolvedItemText('goods', id, good) };
     }
     case 'aow': {
       const id = (itemId ^ GA_AOW) >>> 0;
-      const en = aowById.get(id)?.name ?? null;
+      const aow = aowById.get(id);
+      const en = aow?.name ?? null;
       const zh = zhItemNameByKind('aow', id);
-      return { kind, paramId: id, upgrade: 0, display: zh ?? en ?? `未知战灰 ${id}`, en, icon: aowById.get(id)?.icon ?? null };
+      return { kind, paramId: id, upgrade: 0, display: zh ?? en ?? `未知战灰 ${id}`, en, icon: aow?.icon ?? null, ...resolvedItemText('aow', id, aow) };
     }
   }
 }
@@ -166,6 +188,7 @@ export interface EquipSlotEntry extends ResolvedItem {
   slotLabel: string;
   ashOfWar: string | null;
   ashOfWarId: number | null;
+  ashOfWarItem: ResolvedItem | null;
 }
 
 export interface EquipmentView {
@@ -202,18 +225,17 @@ export function deriveEquipment(slot: LeanSlot): EquipmentView {
     return (gemItemId ^ GA_AOW) >>> 0;
   };
 
-  const ashNameFor = (handle: number): string | null => {
-    const aowId = ashIdFor(handle);
-    if (aowId === null) return null;
-    return zhItemNameByKind('aow', aowId) ?? aowById.get(aowId)?.name ?? null;
+  const armamentEntry = (handle: number, slotLabel: string): EquipSlotEntry => {
+    const ashOfWarId = handle ? ashIdFor(handle) : null;
+    const ashOfWarItem = ashOfWarId === null ? null : resolveGaItemId((ashOfWarId | GA_AOW) >>> 0);
+    return {
+      ...resolveHandle(handle),
+      slotLabel,
+      ashOfWar: ashOfWarItem?.display ?? null,
+      ashOfWarId,
+      ashOfWarItem,
+    };
   };
-
-  const armamentEntry = (handle: number, slotLabel: string): EquipSlotEntry => ({
-    ...resolveHandle(handle),
-    slotLabel,
-    ashOfWar: handle ? ashNameFor(handle) : null,
-    ashOfWarId: handle ? ashIdFor(handle) : null,
-  });
 
   const armaments: EquipSlotEntry[] = [
     ...slot.chr_asm2.right_hand_armaments.map((h, i) => armamentEntry(h, `右手 ${i + 1}`)),
@@ -227,13 +249,14 @@ export function deriveEquipment(slot: LeanSlot): EquipmentView {
       ['手部', slot.chr_asm2.arms],
       ['腿部', slot.chr_asm2.legs],
     ] as const
-  ).map(([slotLabel, handle]) => ({ ...resolveHandle(handle), slotLabel, ashOfWar: null, ashOfWarId: null }));
+  ).map(([slotLabel, handle]) => ({ ...resolveHandle(handle), slotLabel, ashOfWar: null, ashOfWarId: null, ashOfWarItem: null }));
 
   const talismans: EquipSlotEntry[] = slot.chr_asm2.talismans.map((handle, i) => ({
     ...resolveHandle(handle),
     slotLabel: `护符 ${i + 1}`,
     ashOfWar: null,
     ashOfWarId: null,
+    ashOfWarItem: null,
   }));
 
   const arrows: EquipSlotEntry[] = [
@@ -256,14 +279,17 @@ export function deriveEquipment(slot: LeanSlot): EquipmentView {
   const spells = slot.equipped_spells
     .filter((id) => id > 0 && id < 0xfffffffe)
     .map((id) => {
-      const en = spellById.get(id)?.name ?? null;
+      const spell = spellById.get(id);
+      const good = goodById.get(id);
+      const en = spell?.name ?? good?.name ?? null;
       return {
         kind: 'goods' as const,
         paramId: id,
         upgrade: 0,
-        display: zhItemNameByKind('goods', id) ?? en ?? `未知法术 ${id}`,
+        display: zhItemNameByKind('spell', id) ?? en ?? `未知法术 ${id}`,
         en,
-        icon: spellById.get(id)?.icon ?? goodById.get(id)?.icon ?? null,
+        icon: spell?.icon ?? good?.icon ?? null,
+        ...resolvedItemText('spell', id, spell ?? good),
       };
     });
 

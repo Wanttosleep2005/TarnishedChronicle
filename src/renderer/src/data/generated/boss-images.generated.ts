@@ -200,7 +200,6 @@ export const BOSS_IMAGE_FILE_BY_FLAG: Readonly<Record<number, string>> = {
   2049450800: 'ralva-the-great-red-bear.webp',
   2049480800: 'commander-gaius.webp',
   2050470800: 'tree-sentinel.webp',
-  2050480800: 'fallingstar-beast.webp',
   2050480860: 'tree-sentinel.webp',
   2051440800: 'rakshasa.webp',
   2051450800: 'count-ymir-mother-of-fingers.webp',

@@ -1515,14 +1515,48 @@ textarea.input {
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 12px;
 }
+.equip-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
 .equip-item {
   display: flex;
+  width: 100%;
   gap: 12px;
   align-items: center;
   background: var(--panel-3);
   border: 1px solid var(--line);
   border-radius: 9px;
   padding: 10px 12px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  appearance: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
+}
+.equip-item:hover:not(:disabled) {
+  border-color: var(--gold-dim);
+  background: rgba(201, 166, 98, 0.08);
+}
+.equip-item.is-selected {
+  border-color: var(--gold);
+  background: rgba(201, 166, 98, 0.11);
+  box-shadow: inset 3px 0 0 var(--gold-dim);
+}
+.equip-item:focus-visible,
+.equip-ash-select:focus-visible,
+.inventory-item-select:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.equip-item:disabled {
+  cursor: default;
+  opacity: 0.72;
+}
+.equip-item > div:last-child {
+  min-width: 0;
 }
 .equip-thumb {
   width: 44px;
@@ -1553,6 +1587,230 @@ textarea.input {
 .equip-extra {
   font-size: 11.5px;
   color: var(--gold-dim);
+}
+.equip-ash-select {
+  align-self: flex-start;
+  margin-left: 56px;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--gold-dim);
+  font: inherit;
+  font-size: 11.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.equip-ash-select:hover {
+  color: var(--gold-2);
+  text-decoration: underline;
+}
+.item-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: center;
+  padding: clamp(18px, 4vw, 48px);
+  background: rgba(5, 5, 4, 0.82);
+}
+.item-dialog {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(900px, 100%);
+  max-height: min(84vh, 760px);
+  overflow: hidden;
+  border: 1px solid rgba(201, 169, 93, 0.34);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.52);
+}
+.item-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 22px 18px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+}
+.item-dialog-heading {
+  min-width: 0;
+}
+.item-dialog-meta {
+  color: var(--gold-dim);
+  font-size: 10.5px;
+  letter-spacing: 1.5px;
+}
+.item-dialog-heading h2 {
+  margin-top: 6px;
+  color: var(--text);
+  font-family: var(--serif);
+  font-size: 23px;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+.item-dialog-heading p {
+  margin-top: 4px;
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.item-dialog-close {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  background: rgba(15, 13, 9, 0.48);
+  color: var(--muted);
+  cursor: pointer;
+  font-family: Georgia, serif;
+  font-size: 25px;
+  line-height: 1;
+}
+.item-dialog-close:hover {
+  border-color: var(--gold-dim);
+  color: var(--gold-2);
+}
+.item-dialog-close:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.item-dialog-body {
+  display: grid;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  grid-template-columns: minmax(220px, 0.38fr) minmax(0, 1fr);
+}
+.item-dialog-profile {
+  display: flex;
+  min-width: 0;
+  padding: 26px 22px;
+  border-right: 1px solid var(--line);
+  background: rgba(15, 13, 9, 0.22);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 18px;
+}
+.item-dialog-profile .equip-thumb {
+  width: 96px;
+  height: 96px;
+}
+.item-dialog-summary {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+.item-dialog-description {
+  min-width: 0;
+  padding: 22px 24px 26px;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+.item-dialog-description h3 {
+  margin-bottom: 14px;
+  color: var(--gold-dim);
+  font-family: var(--serif);
+  font-size: 14px;
+  font-weight: 600;
+}
+.item-dialog-description p {
+  margin: 0;
+}
+.weapon-scaling-detail {
+  margin-bottom: 18px;
+  padding: 12px 14px;
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  background: rgba(15, 13, 9, 0.24);
+}
+.weapon-scaling-detail h3 {
+  margin-bottom: 8px;
+}
+.weapon-scaling-detail > p {
+  margin: 0 0 10px;
+  color: var(--muted);
+}
+.weapon-scaling-changes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.weapon-scaling-changes span {
+  padding: 3px 7px;
+  border: 1px solid var(--line-2);
+  border-radius: 4px;
+  background: rgba(15, 13, 9, 0.3);
+  color: var(--faint);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.weapon-scaling-changes span.is-current {
+  border-color: var(--gold-dim);
+  color: var(--gold-2);
+}
+.item-dialog-spacer {
+  height: 10px;
+}
+.inventory-item-select {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.tbl tr.is-selected td {
+  background: rgba(201, 166, 98, 0.1);
+}
+.tbl tr.is-selected .inventory-item-select {
+  color: var(--gold-2);
+}
+
+@media (max-width: 700px) {
+  .item-dialog-backdrop {
+    padding: 12px;
+  }
+  .item-dialog {
+    max-height: 100%;
+  }
+  .item-dialog-head {
+    gap: 12px;
+    padding: 16px;
+  }
+  .item-dialog-heading h2 {
+    font-size: 20px;
+  }
+  .item-dialog-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .item-dialog-profile {
+    padding: 17px 16px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    flex-direction: row;
+    align-items: center;
+  }
+  .item-dialog-profile .equip-thumb {
+    width: 72px;
+    height: 72px;
+  }
+  .item-dialog-description {
+    padding: 18px 16px 22px;
+  }
 }
 
 /* Boss 讨伐战报 */

@@ -6,7 +6,7 @@
  * - inventory-catalog.generated.ts:物品 ID → 官方简中名
  */
 import { INVENTORY_CATALOG } from './inventory-catalog.generated.ts';
-import { OFFICIAL_ITEM_ZH } from './official-items.generated.ts';
+import { OFFICIAL_ITEM_TEXT_ZH, OFFICIAL_ITEM_ZH, type OfficialItemText } from './official-items.generated.ts';
 import { OFFICIAL_NPC_ZH, OFFICIAL_PLACE_ZH } from './official-names.generated.ts';
 import {
   BOSS_TRANSLATIONS as GEN_BOSS,
@@ -110,13 +110,14 @@ const ZH_BY_CATEGORY: ReadonlyMap<string, Map<number, string>> = (() => {
   return map;
 })();
 
-export type ItemNameKind = 'weapon' | 'armor' | 'talisman' | 'goods' | 'aow';
+export type ItemNameKind = 'weapon' | 'armor' | 'talisman' | 'goods' | 'aow' | 'spell';
 
 const CATS_BY_KIND: Readonly<Record<ItemNameKind, string[]>> = {
   weapon: ['weapons-shields', 'ammunition'],
   armor: ['armor'],
   talisman: ['talismans'],
   aow: ['ashes-of-war'],
+  spell: ['spells', 'tools'],
   goods: [
     'tools',
     'key-items',
@@ -138,6 +139,15 @@ export function zhItemNameByKind(kind: ItemNameKind, paramId: number): string | 
   for (const cat of CATS_BY_KIND[kind]) {
     const hit = ZH_BY_CATEGORY.get(cat)?.get(paramId);
     if (hit) return hit;
+  }
+  return null;
+}
+
+/** 按物品类别查官方简中摘要与完整说明。 */
+export function zhItemTextByKind(kind: ItemNameKind, paramId: number): OfficialItemText | null {
+  for (const cat of CATS_BY_KIND[kind]) {
+    const text = OFFICIAL_ITEM_TEXT_ZH[cat]?.[paramId];
+    if (text) return text;
   }
   return null;
 }

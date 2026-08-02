@@ -73,7 +73,7 @@ function Medallion({ row, size = 46 }: { row: BossRow; size?: number }) {
         width={size}
         height={size}
         alt=""
-        title={`Boss 肖像 (${portrait.source === 'fanapi' ? 'Fan API' : 'Fandom'})`}
+        title="Boss 肖像"
         style={{
           borderRadius: '50%',
           border: `2px solid ${row.defeated ? 'var(--gold-dim)' : 'var(--line-2)'}`,

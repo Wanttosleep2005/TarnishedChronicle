@@ -39,7 +39,13 @@ import {
   availableSkillsForWeapon,
   estimateSkillAttack,
 } from '../../lib/weapon-skill.ts';
-import { DAMAGE_ZH, profileAttrs, weaponPanelAt } from '../../lib/weapon-ar.ts';
+import {
+  DAMAGE_ZH,
+  profileAttrs,
+  STANDARD_AFFINITY,
+  weaponAffinityLabel,
+  weaponPanelAt,
+} from '../../lib/weapon-ar.ts';
 
 type CalculatorView = 'weapon' | 'skills' | 'spells';
 type WeaponScope = 'owned' | 'all';
@@ -74,11 +80,6 @@ const SPELL_BONUS_SLOT_CATEGORIES = ['减防debuff', '装备buff', '立誓类buf
 const SKILL_BONUS_SLOT_CATEGORIES = ['减防debuff', '装备buff', '立誓类buff', '身体类buff', '副手类buff'] as const;
 const EXCLUDED_WEAPON_CATEGORIES = new Set(['Arrow', 'Greatarrow', 'Bolt', 'Greatbolt']);
 const NEW_GAME_CYCLES = Array.from({ length: 8 }, (_, cycle) => cycle);
-const AFFINITY_ZH: Readonly<Record<string, string>> = {
-  Standard: '标准', Heavy: '厚重', Keen: '锋利', Quality: '优质', Fire: '火焰',
-  'Flame Art': '焰术', Lightning: '雷电', Sacred: '神圣', Magic: '魔力', Cold: '寒冷',
-  Poison: '毒', Blood: '血', Occult: '神秘',
-};
 const DAMAGE_TYPE_TO_CONDITION: Readonly<Record<string, string>> = {
   physical: '物',
   magic: '魔',
@@ -132,16 +133,10 @@ function bonusPercent(multiplier: number): string {
   return `${Math.round((multiplier - 1) * 1000) / 10}%`;
 }
 
-function weaponAffinityLabel(weapon: Weapon, base: Weapon): string {
-  if (weapon.id === base.id) return AFFINITY_ZH.Standard;
-  const prefix = weapon.name.endsWith(base.name) ? weapon.name.slice(0, -base.name.length).trim() : weapon.name;
-  return AFFINITY_ZH[prefix] ?? prefix;
-}
-
 function calculatorWeaponName(weapon: Weapon, base: Weapon): string {
   const baseName = zhItemNameByKind('weapon', base.id) ?? base.name;
   const affinity = weaponAffinityLabel(weapon, base);
-  return affinity === AFFINITY_ZH.Standard ? baseName : `${affinity}·${baseName}`;
+  return affinity === STANDARD_AFFINITY ? baseName : `${affinity}·${baseName}`;
 }
 
 export function CalculatorPage() {
@@ -369,7 +364,7 @@ export function CalculatorPage() {
             className="input"
             type="search"
             aria-label="搜索敌人"
-            placeholder="搜索敌人中文、英文或地区"
+            placeholder="搜索敌人中文、英文、变体或地区"
             value={enemySearch}
             onChange={(event) => setEnemySearch(event.target.value)}
           />
@@ -408,7 +403,7 @@ export function CalculatorPage() {
           >
             {filteredEnemies.length === 0
               ? <option value="">没有匹配的敌人</option>
-              : filteredEnemies.map((enemy, index) => <option key={`${enemy.npcParamId}-${index}`} value={enemy.npcParamId}>{enemy.name} · {enemy.region}</option>)}
+              : filteredEnemies.map((enemy, index) => <option key={`${enemy.npcParamId}-${index}`} value={enemy.npcParamId}>{enemy.nameVariant || enemy.name} · {enemy.region}</option>)}
           </select>
           <label className="calculator-upgrade calculator-cycle"><span>周目</span><select className="select" aria-label="模拟周目" value={newGameCycle} onChange={(event) => setNewGameCycle(Number(event.target.value))}>
             {NEW_GAME_CYCLES.map((cycle) => <option key={cycle} value={cycle}>{newGameLabel(cycle)}</option>)}
@@ -426,9 +421,9 @@ export function CalculatorPage() {
           <span>{weaponHand === 'oneHand' ? '单持' : '双持'}面板 {Math.round(chosenWeapon.panel.total)}</span>
           <span className="desc">{chosenWeapon.owned ? '当前角色持有' : '完整目录模拟'} · {chosenWeapon.category}</span>
         </div>}
-        {chosenEnemy && damageEstimate && <>
+          {chosenEnemy && damageEstimate && <>
           <div className="combat-summary">
-            <span>{chosenEnemy.name}</span>
+            <span>{chosenEnemy.nameVariant || chosenEnemy.name}</span>
             <span>{chosenEnemy.region}</span>
             <span>{newGameLabel(newGameCycle)}</span>
             <span className="desc">按所选动作全部段正面命中计算；部位、暴击、弱点与状态效果未计入。</span>
@@ -512,7 +507,7 @@ export function CalculatorPage() {
           <select className="select" aria-label="战技敌人" value={chosenEnemy?.npcParamId ?? ''} disabled={filteredEnemies.length === 0} onChange={(event) => setSelectedEnemyId(Number(event.target.value))}>
             {filteredEnemies.length === 0
               ? <option value="">没有匹配的敌人</option>
-              : filteredEnemies.map((enemy, index) => <option key={`${enemy.npcParamId}-${index}`} value={enemy.npcParamId}>{enemy.name} · {enemy.region}</option>)}
+              : filteredEnemies.map((enemy, index) => <option key={`${enemy.npcParamId}-${index}`} value={enemy.npcParamId}>{enemy.nameVariant || enemy.name} · {enemy.region}</option>)}
           </select>
           <label className="calculator-upgrade calculator-cycle"><span>周目</span><select className="select" aria-label="战技模拟周目" value={newGameCycle} onChange={(event) => setNewGameCycle(Number(event.target.value))}>
             {NEW_GAME_CYCLES.map((cycle) => <option key={cycle} value={cycle}>{newGameLabel(cycle)}</option>)}

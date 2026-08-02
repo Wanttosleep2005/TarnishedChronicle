@@ -7,7 +7,7 @@ import { zhItemNameByKind } from '../data/zh/translations.ts';
 import { deriveEquipment, deriveProfile, type EquipmentView } from '../lib/derive.ts';
 import { drawLoadoutShareCard, type LoadoutShareData } from '../lib/loadout-share-card.ts';
 import { useActiveSlot, useSaveContext } from '../lib/save-context.tsx';
-import { profileAttrs, weaponPanelAt } from '../lib/weapon-ar.ts';
+import { profileAttrs, STANDARD_AFFINITY, weaponAffinityLabel, weaponPanelAt } from '../lib/weapon-ar.ts';
 import { fuzzyMatch } from '../lib/fuzzy-search.ts';
 
 type AttrKey = 'vig' | 'mnd' | 'end' | 'str' | 'dex' | 'int' | 'fai' | 'arc';
@@ -28,22 +28,6 @@ const ARMOR_FILTER_LABEL: Readonly<Record<ArmorSlot, string>> = {
   chest: '身体',
   arms: '腕部',
   legs: '腿部',
-};
-
-const AFFINITY_ZH: Readonly<Record<string, string>> = {
-  Standard: '标准',
-  Heavy: '厚重',
-  Keen: '锋利',
-  Quality: '优质',
-  Fire: '火焰',
-  'Flame Art': '焰术',
-  Lightning: '雷电',
-  Sacred: '神圣',
-  Magic: '魔力',
-  Cold: '寒冷',
-  Poison: '毒',
-  Blood: '血',
-  Occult: '神秘',
 };
 
 const ATTRS: { key: AttrKey; label: string }[] = [
@@ -134,12 +118,6 @@ function defaultState(equipment: EquipmentView, stats: LoadoutState['stats']): L
 
 function itemName(kind: CatalogKind, id: number | null): string {
   return id === null ? '空槽' : nameFor(kind, id);
-}
-
-function weaponAffinityLabel(weapon: Weapon, base: Weapon): string {
-  if (weapon.id === base.id) return AFFINITY_ZH.Standard;
-  const prefix = weapon.name.endsWith(base.name) ? weapon.name.slice(0, -base.name.length).trim() : weapon.name;
-  return AFFINITY_ZH[prefix] ?? prefix;
 }
 
 function isArmorSlot(value: string): value is ArmorSlot {
@@ -448,7 +426,7 @@ export function LoadoutPage() {
             const selectedVariantId = activeSlot === 'rightWeapon' ? current.rightWeapon : activeSlot === 'leftWeapon' ? current.leftWeapon : null;
             const preferredVariant = item.weaponVariants?.find((variant) => variant.id === selectedVariantId)
               ?? (onlyOwned ? item.weaponVariants?.find((variant) => variant.owned) : undefined)
-              ?? item.weaponVariants?.find((variant) => variant.label === '标准')
+              ?? item.weaponVariants?.find((variant) => variant.label === STANDARD_AFFINITY)
               ?? item.weaponVariants?.[0];
             return item.kind === 'weapon' && item.weaponVariants ? <article className="loadout-weapon-group" key={`${item.kind}-${item.id}`}><button className="loadout-result" onClick={() => preferredVariant && equip({ ...item, id: preferredVariant.id, name: nameFor('weapon', preferredVariant.id) })}><ItemThumb icon={item.icon} size={34} /><span><strong>{item.name}</strong><small>{item.category} · {item.weight.toFixed(1)} 重量 · {item.weaponVariants.length} 种质变</small></span>{item.owned ? <em>已拥有</em> : <i>未拥有</i>}</button>{item.weaponVariants.length > 1 && <details className="loadout-affinities"><summary>可质变 {item.weaponVariants.length} 种</summary><div>{item.weaponVariants.map((variant) => <button key={variant.id} type="button" className={variant.id === selectedVariantId ? 'is-selected' : ''} onClick={() => equip({ ...item, id: variant.id, name: nameFor('weapon', variant.id) })}>{variant.label}{variant.owned && <small>已拥有</small>}</button>)}</div></details>}</article> : <button className="loadout-result" key={`${item.kind}-${item.id}`} onClick={() => equip(item)}><ItemThumb icon={item.icon} size={34} /><span><strong>{item.name}</strong><small>{item.en} · {item.category} · {item.weight.toFixed(1)} 重量</small></span>{item.owned ? <em>已拥有</em> : <i>未拥有</i>}</button>;
           })}{matchingCatalog.length === 0 && <div className="notice">没有符合条件的装备。</div>}</div>

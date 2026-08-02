@@ -24,5 +24,10 @@ check(calculator.includes('SKILL_ATTACKS'), '战技页应使用 Excel 提取的�
 check(calculator.includes('weaponScope'), '武器页应支持完整目录与持有范围切换');
 check(calculator.includes('newGameCycle') && calculator.includes('模拟周目'), '武器和战技页应提供共享的周目模拟控件');
 check((weaponSkillData.match(/"specialCorrectionId":/g) ?? []).length === 1428, 'Excel 应导出完整战技攻击参数');
+check((calculator.match(/enemy\.nameVariant \|\| enemy\.name/g) ?? []).length >= 2, '敌人下拉应优先显示武器或配饰配置变体名');
+check(calculator.includes('chosenEnemy.nameVariant || chosenEnemy.name'), '敌人详情摘要应优先显示配置变体名');
+check(calculator.includes('搜索敌人中文、英文、变体或地区'), '敌人搜索应支持配置变体关键词');
+check(calculator.includes('STANDARD_AFFINITY') && calculator.includes('weaponAffinityLabel'), '计算器质变名应使用共享中文映射');
+check(!calculator.includes('AFFINITY_ZH.Standard'), '计算器不应再依赖英文后缀推断质变');
 
 console.log('计算器布局静态测试通过');

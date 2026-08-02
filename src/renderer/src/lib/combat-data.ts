@@ -87,7 +87,7 @@ export function groupSpellCombatRows(rows: readonly SpellCombatRow[]): readonly 
 
 export function filterCombatEnemies(rows: readonly EnemyCombatRow[], query: string): readonly EnemyCombatRow[] {
   if (!query.trim()) return rows;
-  return rows.filter((enemy) => fuzzyMatch(query, enemy.name, enemy.nameEn, enemy.region));
+  return rows.filter((enemy) => fuzzyMatch(query, enemy.name, enemy.nameEn, enemy.nameVariant, enemy.region));
 }
 
 export function weaponCombatForId(paramId: number): WeaponCombatRow | null {

@@ -20,5 +20,11 @@ const bossesPage = readFileSync(join(root, 'src', 'renderer', 'src', 'pages', 'B
 if (bossesPage.indexOf('if (reward?.iconUrl)') > bossesPage.indexOf('if (portrait)')) {
   throw new Error('Remembrance reward icons must remain higher priority than Boss portraits.');
 }
+if (BOSS_IMAGE_FILE_BY_FLAG[2050480800] === 'fallingstar-beast.webp') {
+  throw new Error('Scadutree Avatar must not use the Fallingstar Beast portrait.');
+}
+if (bossesPage.includes('Boss 肖像 (')) {
+  throw new Error('Boss portrait tooltip must not expose Fandom / Fan API source labels.');
+}
 
 console.log(`Boss images: ${Object.keys(BOSS_IMAGE_FILE_BY_FLAG).length} Fandom flag mappings, ${Object.keys(BOSS_FANAPI_IMAGE_FILE_BY_FLAG).length} Fan API overrides.`);

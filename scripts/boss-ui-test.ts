@@ -45,6 +45,8 @@ assert(bossScope(FIXED_BOSSES.find((boss) => boss.defeatFlagId === 2052400800)!)
 const scadutreeAvatar = FIXED_BOSSES.find((boss) => boss.defeatFlagId === 2050480800);
 assert(scadutreeAvatar?.zhOverride === '幽影树的化身', '幽影树的化身不能被误标为坠星兽物。');
 assert(/2050480800:\s*'幽影树的树脚'/.test(bossMeta), '幽影树的化身应归入幽影树的树脚。');
+assert(/2050480800,\s*2002902/.test(bossMeta), '幽影树的化身应映射影轮草的追忆作为奖励头像。');
+assert(/22000800,\s*2002910/.test(bossMeta), '融泥骑士应映射融泥的追忆作为奖励头像。');
 assert(
   scadutreeAvatar && markerToMasterPixel(scadutreeAvatar.mapId, scadutreeAvatar.x, scadutreeAvatar.z)?.master === 'M10',
   '幽影树的化身必须可投影到幽影之地地图。',

@@ -53,9 +53,17 @@ check(miranda?.defenseScale.physical === 1.106, '米兰达常驻物理防御倍�
 check(miranda?.damageTaken.slash === 1.4 && miranda.damageTaken.lightning === 0.6, '米兰达承伤倍率缺失');
 check(miranda?.statusResistance.poison === 1160 && miranda.statusResistance.frost === 135, '米兰达异常抗性缺失');
 check(miranda?.statusImmunity.madness === true && miranda.statusImmunity.poison === false, '米兰达异常免疫标记缺失');
+check(ENEMY_COMBAT_DATA.find((row) => row.npcParamId === 20400024)?.nameVariant === '魔法学院年幼魔法学徒-羽毛笔', '羽毛笔配置的敌人变体名缺失');
+check(ENEMY_COMBAT_DATA.find((row) => row.npcParamId === 20401024)?.nameVariant === '魔法学院年幼魔法学徒-烛台', '烛台配置的敌人变体名缺失');
+check(ENEMY_COMBAT_DATA.find((row) => row.npcParamId === 20402024)?.nameVariant === '魔法学院年幼魔法学徒-羽毛笔-白衣', '白衣羽毛笔配置的敌人变体名缺失');
+check(ENEMY_COMBAT_DATA.find((row) => row.npcParamId === 20404024)?.nameVariant === '魔法学院年幼魔法学徒-烛台', '同名敌人在配饰配置不同时应保留独立变体名');
+check(miranda?.nameVariant === '', '无配置差异的敌人不应填充变体名');
+check(ENEMY_COMBAT_DATA.every((row) => typeof row.nameVariant === 'string'), '敌人变体名字段类型异常');
 check(filterCombatEnemies(ENEMY_COMBAT_DATA, '米兰达').some((row) => row.npcParamId === miranda?.npcParamId), '敌人中文搜索失败');
 check(filterCombatEnemies(ENEMY_COMBAT_DATA, 'miranda').some((row) => row.npcParamId === miranda?.npcParamId), '敌人英文搜索失败');
 check(filterCombatEnemies(ENEMY_COMBAT_DATA, miranda?.region ?? '').some((row) => row.npcParamId === miranda?.npcParamId), '敌人地区搜索失败');
+check(filterCombatEnemies(ENEMY_COMBAT_DATA, '羽毛笔').some((row) => row.npcParamId === 20400024), '敌人配置变体名搜索失败');
+check(filterCombatEnemies(ENEMY_COMBAT_DATA, '烛台').some((row) => row.npcParamId === 20401024), '敌人配饰变体名搜索失败');
 check(weaponCombatForId(1_000_000)?.weapon === '匕首', '武器中文名映射失败');
 
 console.log(`Combat data test passed: weapons ${WEAPON_COMBAT_ACTIONS.length}, spells ${SPELL_COMBAT_DATA.length}, enemies ${ENEMY_COMBAT_DATA.length}`);
