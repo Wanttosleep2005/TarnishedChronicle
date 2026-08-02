@@ -1,6 +1,6 @@
 {
   "name": "tarnished-chronicle",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "存档编年史 — 艾尔登法环 / 杀戮尖塔 2 / 黑暗之魂 3 存档分析:进度、图鉴、成就与 LLM 游玩故事",
   "author": "Tarnished Chronicle Contributors",
   "main": "./out/main/index.js",
@@ -34,6 +34,7 @@
     "test:timeline-insights": "tsx scripts/timeline-insights-test.ts",
     "test:build-insights": "tsx scripts/build-insights-test.ts",
     "test:boss-images": "tsx scripts/boss-images-test.ts",
+    "test:boss-ui": "tsx scripts/boss-ui-test.ts",
     "test:collection-acquisition": "tsx scripts/collection-acquisition-test.ts",
     "test:collection-status": "tsx scripts/collection-status-test.ts",
     "test:collection-sets": "tsx scripts/collection-sets-test.ts",

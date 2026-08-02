@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { HistorySnapshot } from '../../../shared/contracts';
 import { Card, PageHead } from '../components/ui.tsx';
+import { NpcIcon } from '../components/icons.tsx';
 import { deriveProfile, graceForEntityId } from '../lib/derive.ts';
 import { MASTER_LABEL, tupleMapIdCandidates, type MasterId } from '../lib/map-affine.ts';
 import { getMapExtent, getTile, NATIVE_SIZE, pickZoom } from '../lib/map-tiles.ts';
@@ -49,11 +50,6 @@ interface Layers {
   custom: boolean;
 }
 
-interface TooltipPosition {
-  left: number;
-  top: number;
-}
-
 type GraceView = 'all' | 'lit' | 'unlit' | 'current-map';
 
 const MASTERS: MasterId[] = ['M00', 'M01', 'M10']; // 幽影之地没有独立地底母图,不显示 M11
@@ -92,7 +88,6 @@ export function MapPage() {
   );
   const [hover, setHover] = useState<MapPin | null>(null);
   const [selected, setSelected] = useState<MapPin | null>(null);
-  const [hoverTooltipPosition, setHoverTooltipPosition] = useState<TooltipPosition | null>(null);
   const [query, setQuery] = useState('');
   const [history, setHistory] = useState<HistorySnapshot[] | null>(null);
   const viewRef = useRef({ scale: 0.08, ox: 0, oy: 0, dragging: false, moved: 0, lastX: 0, lastY: 0 });
@@ -100,6 +95,7 @@ export function MapPage() {
   const lastCanvasSizeRef = useRef({ width: 0, height: 0 });
   const pendingFocusRef = useRef<MapPin | null>(null);
   const hoverTooltipRef = useRef<HTMLDivElement | null>(null);
+  const updateHoverTooltipPositionRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     if (!savePath) return;
@@ -194,6 +190,7 @@ export function MapPage() {
   // 瓦片异步加载完成后合帧重绘
   const drawRef = useRef<() => void>(() => {});
   const redrawPending = useRef(false);
+  const viewportUpdatePendingRef = useRef(false);
   const hasCompleteFrameRef = useRef(false);
   const lastDrawnMasterRef = useRef<MasterId | null>(null);
   const scheduleRedraw = useCallback(() => {
@@ -202,6 +199,10 @@ export function MapPage() {
     requestAnimationFrame(() => {
       redrawPending.current = false;
       drawRef.current();
+      if (viewportUpdatePendingRef.current) {
+        viewportUpdatePendingRef.current = false;
+        updateHoverTooltipPositionRef.current();
+      }
     });
   }, []);
 
@@ -597,15 +598,14 @@ export function MapPage() {
   drawRef.current = draw;
 
   useEffect(() => {
-    const timer = window.setInterval(() => drawRef.current(), 140);
+    const timer = window.setInterval(scheduleRedraw, 140);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [scheduleRedraw]);
 
   const updateHoverTooltipPosition = useCallback(() => {
     const canvas = canvasRef.current;
     const tooltip = hoverTooltipRef.current;
     if (!canvas || !tooltip || !hover || hover.master !== master) {
-      setHoverTooltipPosition(null);
       return;
     }
 
@@ -623,10 +623,16 @@ export function MapPage() {
     const left = Math.min(Math.max(rightOfPin + tooltipWidth <= canvas.clientWidth - inset ? rightOfPin : leftOfPin, inset), maxLeft);
     const top = Math.min(Math.max(pinY - tooltipHeight / 2, inset), maxTop);
 
-    setHoverTooltipPosition((current) => (
-      current?.left === left && current.top === top ? current : { left, top }
-    ));
+    tooltip.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+    tooltip.style.visibility = 'visible';
   }, [hover, master]);
+
+  updateHoverTooltipPositionRef.current = updateHoverTooltipPosition;
+
+  const scheduleViewportUpdate = useCallback(() => {
+    viewportUpdatePendingRef.current = true;
+    scheduleRedraw();
+  }, [scheduleRedraw]);
 
   useLayoutEffect(() => {
     updateHoverTooltipPosition();
@@ -660,10 +666,9 @@ export function MapPage() {
       view.ox = canvas.clientWidth / 2 - px * view.scale;
       view.oy = canvas.clientHeight / 2 - py * view.scale;
       clampMapPosition();
-      drawRef.current();
-      updateHoverTooltipPosition();
+      scheduleViewportUpdate();
     },
-    [clampMapPosition, clampScale, updateHoverTooltipPosition],
+    [clampMapPosition, clampScale, scheduleViewportUpdate],
   );
 
   const fitView = useCallback(() => {
@@ -679,9 +684,8 @@ export function MapPage() {
     viewRef.current.scale = coverScale;
     viewRef.current.ox = w / 2 - (extent.x + extent.width / 2) * viewRef.current.scale;
     viewRef.current.oy = h / 2 - (extent.y + extent.height / 2) * viewRef.current.scale;
-    drawRef.current();
-    updateHoverTooltipPosition();
-  }, [master, updateHoverTooltipPosition]);
+    scheduleViewportUpdate();
+  }, [master, scheduleViewportUpdate]);
 
   // 母图切换 / 初始:优先消费待定位目标
   useEffect(() => {
@@ -716,7 +720,7 @@ export function MapPage() {
     clearMapFocus();
   }, [mapFocus, focusPin, clearMapFocus]);
 
-  useEffect(() => draw(), [draw]);
+  useEffect(() => scheduleRedraw(), [draw, scheduleRedraw]);
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -728,11 +732,10 @@ export function MapPage() {
       const previous = lastCanvasSizeRef.current;
       if (width === previous.width && height === previous.height) return;
       fitView();
-      requestAnimationFrame(updateHoverTooltipPosition);
     });
     observer.observe(canvas);
     return () => observer.disconnect();
-  }, [fitView, updateHoverTooltipPosition]);
+  }, [fitView]);
 
   const pinAt = useCallback(
     (clientX: number, clientY: number): MapPin | null => {
@@ -769,10 +772,9 @@ export function MapPage() {
       view.oy = cy - ((cy - view.oy) / view.scale) * next;
       view.scale = next;
       clampMapPosition();
-      drawRef.current();
-      updateHoverTooltipPosition();
+      scheduleViewportUpdate();
     },
-    [clampMapPosition, clampScale, updateHoverTooltipPosition],
+    [clampMapPosition, clampScale, scheduleViewportUpdate],
   );
 
   const zoomBy = useCallback(
@@ -815,7 +817,7 @@ export function MapPage() {
     : pins.find((p) => p.kind === 'grace' && p.flagId === lastRestedFlagId) ?? null;
   const litGraceCount = masterPins.filter((p) => p.kind === 'grace' && p.active).length;
 
-  const layerButton = (key: keyof Layers, label: string) => (
+  const layerButton = (key: keyof Layers, label: ReactNode) => (
     <button
       className={`btn small ${layers[key] ? 'primary' : ''}`}
       onClick={() => setLayers({ ...layers, [key]: !layers[key] })}
@@ -896,7 +898,12 @@ export function MapPage() {
         <div className="row map-toolbar" style={{ marginBottom: 10 }}>
           {layerButton('grace', `✦ 赐福 ${counts.grace}`)}
           {layerButton('boss', `☠ Boss ${counts.boss}`)}
-          {layerButton('npc', `人 NPC ${counts.npc}`)}
+          {layerButton('npc', (
+            <>
+              <NpcIcon size={15} />
+              NPC {counts.npc}
+            </>
+          ))}
           {layerButton('blood', `🩸 血迹 ${counts.blood}`)}
           {layerButton('custom', `◆ 标记 ${customMarkers.filter((m) => m.master === master).length}`)}
           {trackedNpcPin && (
@@ -985,8 +992,7 @@ export function MapPage() {
                 view.lastX = e.clientX;
                 view.lastY = e.clientY;
                 clampMapPosition();
-                draw();
-                updateHoverTooltipPosition();
+                scheduleViewportUpdate();
               } else {
                 setHover(pinAt(e.clientX, e.clientY));
               }
@@ -997,8 +1003,8 @@ export function MapPage() {
               ref={hoverTooltipRef}
               style={{
                 position: 'absolute',
-                left: hoverTooltipPosition?.left ?? 12,
-                top: hoverTooltipPosition?.top ?? 12,
+                left: 0,
+                top: 0,
                 background: 'rgba(76,43,33,0.88)',
                 border: '1px solid rgba(225,176,145,0.45)',
                 borderLeft: '2px solid rgba(244,204,172,0.78)',
@@ -1014,7 +1020,7 @@ export function MapPage() {
                 whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
-                visibility: hoverTooltipPosition ? 'visible' : 'hidden',
+                willChange: 'transform',
                 zIndex: 1,
               }}
             >

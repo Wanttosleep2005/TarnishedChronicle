@@ -140,6 +140,15 @@ export function MapPinIcon({ size = 14 }: { size?: number }) {
   );
 }
 
+export function NpcIcon({ size = 15 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="7.5" r="3" />
+      <path d="M5.5 21c0.8-4 3.3-6.2 6.5-6.2s5.7 2.2 6.5 6.2" />
+    </svg>
+  );
+}
+
 export function TargetIcon({ size = 14 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

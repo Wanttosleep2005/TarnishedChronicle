@@ -71,12 +71,24 @@ export function isDlcArmorId(id: number): boolean {
 }
 
 export type ArmorSetStatus = CollectionStatus | 'partial';
+export type ArmorSetVariant = 'standard' | 'altered';
 
 export interface ArmorSetView {
+  readonly key: string;
+  readonly name: string;
   readonly def: ArmorSetDef;
   readonly entries: readonly CollectionEntry[];
   readonly ownedCount: number;
   readonly status: ArmorSetStatus;
+  readonly variant: ArmorSetVariant;
+  readonly hasAlteredVariant: boolean;
+}
+
+export interface ArmorSetVariantGroup {
+  readonly key: string;
+  readonly def: ArmorSetDef;
+  readonly standard: ArmorSetView;
+  readonly altered?: ArmorSetView;
 }
 
 export function armorSetStatus(entries: readonly CollectionEntry[], ownedCount: number, locationsReady: boolean): ArmorSetStatus {
@@ -85,6 +97,48 @@ export function armorSetStatus(entries: readonly CollectionEntry[], ownedCount: 
   if (entries.some((entry) => entryStatus(entry, locationsReady) === 'unresolved')) return 'unresolved';
   if (ownedCount > 0) return 'partial';
   return 'missing';
+}
+
+function armorSetView(
+  def: ArmorSetDef,
+  entries: readonly CollectionEntry[],
+  variant: ArmorSetVariant,
+  hasAlteredVariant: boolean,
+  locationsReady: boolean,
+): ArmorSetView {
+  const ownedCount = entries.filter((entry) => entry.owned).length;
+  return {
+    key: `${def.name}:${variant}`,
+    name: variant === 'altered' ? `${def.name}（轻装）` : def.name,
+    def,
+    entries,
+    ownedCount,
+    status: armorSetStatus(entries, ownedCount, locationsReady),
+    variant,
+    hasAlteredVariant,
+  };
+}
+
+/** 将同一实际套装的原装与轻装视图收拢为一张可切换的展示卡。 */
+export function groupArmorSetVariants(views: readonly ArmorSetView[]): readonly ArmorSetVariantGroup[] {
+  const byName = new Map<string, { def: ArmorSetDef; standard?: ArmorSetView; altered?: ArmorSetView }>();
+  for (const view of views) {
+    const group = byName.get(view.def.name) ?? { def: view.def };
+    if (view.variant === 'standard') group.standard = view;
+    else group.altered = view;
+    byName.set(view.def.name, group);
+  }
+  const groups: ArmorSetVariantGroup[] = [];
+  for (const group of byName.values()) {
+    if (!group.standard) continue;
+    groups.push({
+      key: group.def.name,
+      def: group.def,
+      standard: group.standard,
+      ...(group.altered ? { altered: group.altered } : {}),
+    });
+  }
+  return groups;
 }
 
 /** 把防具目录按套装分组，未归入任何套装的散件作为单件返回。 */
@@ -103,8 +157,15 @@ export function groupArmorSets(
       .map((id) => byId.get(id))
       .filter((entry): entry is CollectionEntry => entry !== undefined);
     if (setEntries.length === 0) continue;
-    const ownedCount = setEntries.filter((entry) => entry.owned).length;
-    sets.push({ def, entries: setEntries, ownedCount, status: armorSetStatus(setEntries, ownedCount, locationsReady) });
+    const alteredEntries = setEntries.filter((entry) => entry.en.endsWith('(Altered)'));
+    const hasAlteredVariant = alteredEntries.length > 0;
+    const standardEntries = setEntries.filter((entry) => !entry.en.endsWith('(Altered)'));
+    sets.push(armorSetView(def, standardEntries, 'standard', hasAlteredVariant, locationsReady));
+    if (hasAlteredVariant) {
+      const alteredSlots = new Set(alteredEntries.map((entry) => entry.category));
+      const lightEntries = setEntries.filter((entry) => entry.en.endsWith('(Altered)') || !alteredSlots.has(entry.category));
+      sets.push(armorSetView(def, lightEntries, 'altered', true, locationsReady));
+    }
   }
   const singles = ARMOR_SINGLE_IDS
     .map((id) => byId.get(id))

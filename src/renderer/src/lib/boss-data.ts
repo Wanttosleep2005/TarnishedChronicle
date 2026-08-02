@@ -37,7 +37,7 @@ const FIXES: Readonly<Record<number, BossFix>> = {
   1044320800: { zh: '死之鸟(啜泣半岛)' }, // 摩恩城墙夜晚,3900 卢恩
   1044320850: { zh: '黑夜骑兵(啜泣半岛)' }, // 3400 卢恩
   1254560800: { zh: '死亡仪式鸟(结冰湖)' }, // 巨人山顶结冰湖夜晚
-  2050480800: { zh: '坠星兽物(幽影树的树脚)' }, // DLC 望影露台基部弹坑
+  2050480800: { zh: '幽影树的化身' }, // m61_50_48 的三阶段血条均为 Scadutree Avatar
   2051450800: { zh: OFFICIAL_NPC_ZH['Count Ymir, Mother of Fingers'] ?? '“指头之母”尤弥尔' },
   // 终战:上游只录了艾尔登之兽,补上同场战斗的拉达冈(共用讨伐旗标 19000800)
   19000800: { zh: '“黄金律法”拉达冈 & 艾尔登之兽' },
@@ -58,6 +58,18 @@ export interface BossLocation {
   x: number;
   y: number;
   z: number;
+}
+
+/**
+ * 黄金树幽影的实际 Boss 地图区块。这里按游戏地图 ID 判定，不依赖 Boss 名称或旗标编号；
+ * m40 / m41 / m43 是 DLC 地牢，m61 是幽影之地野外母图。
+ */
+const DLC_BOSS_MAP_AREAS: ReadonlySet<string> = new Set(['m20', 'm21', 'm22', 'm25', 'm28', 'm40', 'm41', 'm43', 'm61']);
+
+export type BossScope = 'base' | 'dlc';
+
+export function bossScope(boss: Pick<Boss, 'mapId'>): BossScope {
+  return DLC_BOSS_MAP_AREAS.has(boss.mapId.slice(0, 3)) ? 'dlc' : 'base';
 }
 
 const corrected = BOSSES.map((boss) => {

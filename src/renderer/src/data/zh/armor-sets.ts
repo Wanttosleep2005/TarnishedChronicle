@@ -1,5 +1,7 @@
-// @generated from 逗游网《艾尔登法环》装备图鉴大全套装划分 + 人工核对（黄金树幽影 DLC 套装）。
-// 键为防具条目 ID；order 决定收藏页套装视图的默认排序（本体按图鉴页序，DLC 按 ID 序，单件最后）。
+// 套装组成核对来源：Eldenpedia《Elden Ring》Armor Sets（2026-08-01）。
+// https://eldenring.wiki.gg/wiki/Armor_Sets
+// 轻装依据游戏 1.16.2 的 (Altered) 条目；流浪骑士轻装另经对应条目页核验。
+// 未实装的拼接防具不作为实际套装，仍保留在单件列表。
 
 export interface ArmorSetDef {
   readonly name: string;
@@ -14,8 +16,18 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "dlc": false,
     "order": 0,
     "itemIds": [
+      160000,
       160100,
       160300
+    ]
+  },
+  {
+    "name": "白金之子套装",
+    "dlc": false,
+    "order": 0.5,
+    "itemIds": [
+      1060000,
+      1060100
     ]
   },
   {
@@ -48,10 +60,8 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "order": 3,
     "itemIds": [
       370000,
-      380000,
       370100,
       371100,
-      380100,
       370300
     ]
   },
@@ -83,7 +93,8 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "itemIds": [
       1990000,
       1990100,
-      1991100
+      1991100,
+      220300
     ]
   },
   {
@@ -134,6 +145,7 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "order": 11,
     "itemIds": [
       964000,
+      964100,
       963200
     ]
   },
@@ -176,7 +188,9 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "order": 15,
     "itemIds": [
       832000,
-      2030000
+      2030000,
+      830200,
+      830300
     ]
   },
   {
@@ -258,7 +272,8 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "itemIds": [
       580000,
       580100,
-      580200
+      580200,
+      580300
     ]
   },
   {
@@ -469,10 +484,10 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "dlc": false,
     "order": 42,
     "itemIds": [
+      1400000,
       1400100,
       1400200,
-      1400300,
-      40300
+      1400300
     ]
   },
   {
@@ -527,7 +542,6 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "order": 47,
     "itemIds": [
       1401000,
-      1400000,
       931100,
       930200,
       930300
@@ -563,7 +577,9 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "order": 50,
     "itemIds": [
       930000,
-      930100
+      930100,
+      930200,
+      930300
     ]
   },
   {
@@ -583,7 +599,9 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "order": 52,
     "itemIds": [
       1840000,
-      1840100
+      1840100,
+      1830200,
+      1830300
     ]
   },
   {
@@ -592,7 +610,9 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "order": 53,
     "itemIds": [
       1860000,
-      1860100
+      1860100,
+      1830200,
+      1830300
     ]
   },
   {
@@ -601,7 +621,9 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "order": 54,
     "itemIds": [
       1850000,
-      1850100
+      1850100,
+      1830200,
+      1830300
     ]
   },
   {
@@ -610,7 +632,19 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "order": 55,
     "itemIds": [
       1880000,
-      1880100
+      1880100,
+      1830200,
+      1830300
+    ]
+  },
+  {
+    "name": "灵庙小兵套装",
+    "dlc": false,
+    "order": 55.5,
+    "itemIds": [
+      1870100,
+      1830200,
+      1830300
     ]
   },
   {
@@ -620,7 +654,8 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "itemIds": [
       1980000,
       1980100,
-      1980200
+      1980200,
+      1830300
     ]
   },
   {
@@ -675,9 +710,11 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "order": 61,
     "itemIds": [
       292000,
-      292100,
       294000,
-      294100
+      292100,
+      294100,
+      290200,
+      290300
     ]
   },
   {
@@ -686,7 +723,9 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "order": 62,
     "itemIds": [
       293000,
-      293100
+      293100,
+      290200,
+      290300
     ]
   },
   {
@@ -712,13 +751,14 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     ]
   },
   {
-    "name": "交界地士兵套装",
+    "name": "铁制套装",
     "dlc": false,
     "order": 65,
     "itemIds": [
       40000,
-      1102100,
-      40200
+      40100,
+      40200,
+      40300
     ]
   },
   {
@@ -1132,10 +1172,11 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "dlc": false,
     "order": 101,
     "itemIds": [
+      170000,
       170100,
+      171100,
       170200,
-      170300,
-      171100
+      170300
     ]
   },
   {
@@ -1301,7 +1342,9 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "itemIds": [
       571000,
       571100,
-      573100
+      573100,
+      570200,
+      570300
     ]
   },
   {
@@ -1374,19 +1417,6 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     ]
   },
   {
-    "name": "拼接（帕奇）套装",
-    "dlc": false,
-    "order": 122,
-    "itemIds": [
-      610000,
-      610100,
-      610200,
-      610300,
-      611000,
-      611100
-    ]
-  },
-  {
     "name": "聚兽套装",
     "dlc": false,
     "order": 123,
@@ -1403,6 +1433,10 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "dlc": false,
     "order": 124,
     "itemIds": [
+      833000,
+      831000,
+      830000,
+      834000,
       830100,
       830200,
       830300
@@ -1437,10 +1471,9 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "order": 127,
     "itemIds": [
       5000000,
-      5000100,
+      5002100,
       5000200,
-      5000300,
-      5002100
+      5000300
     ]
   },
   {
@@ -1613,10 +1646,9 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
     "itemIds": [
       5180000,
       5180100,
-      5180200,
-      5180300,
       5181100,
-      5184000
+      5180200,
+      5180300
     ]
   },
   {
@@ -1757,25 +1789,23 @@ export const ARMOR_SETS: readonly ArmorSetDef[] = [
 ];
 
 export const ARMOR_SINGLE_IDS: readonly number[] = [
-  40100,
-  160000,
-  170000,
+  380000,
+  380100,
   440000,
   480100,
   481100,
+  610000,
+  610100,
+  610200,
+  610300,
+  611000,
+  611100,
   620100,
   820000,
-  830000,
-  831000,
-  833000,
-  834000,
   850000,
   891000,
   962100,
-  964100,
   1050100,
-  1060000,
-  1060100,
   1080000,
   1081000,
   1082000,
@@ -1785,12 +1815,12 @@ export const ARMOR_SINGLE_IDS: readonly number[] = [
   1090000,
   1101000,
   1101100,
+  1102100,
   1110000,
   1120000,
   1300000,
   1301000,
   1600000,
-  1870100,
   1900000,
   1901000,
   1902000,
@@ -1798,9 +1828,11 @@ export const ARMOR_SINGLE_IDS: readonly number[] = [
   1920000,
   1930100,
   2020000,
+  5000100,
   5020000,
   5182000,
   5183000,
+  5184000,
   5272000,
   5290000,
   5300000,

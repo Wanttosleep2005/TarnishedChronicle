@@ -4,6 +4,7 @@ const page = readFileSync(new URL('../src/renderer/src/pages/MapPage.tsx', impor
 const styles = readFileSync(new URL('../src/renderer/src/styles.css', import.meta.url), 'utf8');
 const tiles = readFileSync(new URL('../src/renderer/src/lib/map-tiles.ts', import.meta.url), 'utf8');
 const worldmap = readFileSync(new URL('../src/renderer/src/lib/worldmap.ts', import.meta.url), 'utf8');
+const icons = readFileSync(new URL('../src/renderer/src/components/icons.tsx', import.meta.url), 'utf8');
 
 function check(condition: boolean, message: string): void {
   if (!condition) throw new Error(message);
@@ -52,9 +53,17 @@ check(page.includes('const bossSkullRadius = 6 * markerScale;'), 'Boss 应使用
 check(page.includes('ctx.ellipse(x - bossSkullRadius * 0.34'), 'Boss 骷髅头应绘制可辨识的眼窝。');
 check(!page.includes('ctx.rect(x - r, y - r, r * 2, r * 2);'), 'Boss 不应继续显示为方块。');
 check(page.includes("ctx.fillStyle = '#67d2a3';"), 'NPC 图标应使用高对比颜色。');
+check(page.includes("import { NpcIcon } from '../components/icons.tsx'"), 'NPC 图层按钮应使用共享人物图标。');
+check(page.includes('<NpcIcon size={15} />'), 'NPC 图层按钮应渲染人物图标。');
+check(!page.includes('人 NPC'), 'NPC 图层按钮不应再以“人”作为图标。');
+check(icons.includes('export function NpcIcon'), '共享图标模块应定义 NPC 人物图标。');
 check(page.includes('const hoverTooltipRef = useRef'), '悬停点位标签应保留浮层元素引用以测量实际尺寸。');
 check(page.includes('const updateHoverTooltipPosition = useCallback'), '悬停点位标签应根据图标坐标计算浮层位置。');
-check(page.includes('hoverTooltipPosition'), '悬停点位标签应使用动态计算的位置。');
+check(page.includes('tooltip.style.transform = `translate3d(${left}px, ${top}px, 0)`;'), 'hover tooltip movement should bypass React state during panning.');
+check(page.includes('const viewportUpdatePendingRef = useRef(false);'), 'viewport updates should keep a pending-frame guard.');
+check(page.includes('const scheduleViewportUpdate = useCallback'), 'dragging and zooming should use a viewport frame scheduler.');
+check(page.includes('drawRef.current();') && page.includes('updateHoverTooltipPositionRef.current();'), 'a scheduled viewport frame should draw and move the hover tooltip together.');
+check(!page.includes('                draw();\n                updateHoverTooltipPosition();'), 'pointer dragging should not synchronously redraw for every input event.');
 check(page.includes('hover && hover.master === master'), '悬停点位标签只应在所属母图中显示。');
 check(page.includes('updateHoverTooltipPosition();'), '拖拽或缩放地图后，悬停点位标签应继续跟随图标。');
 check(!page.includes('selectedTooltipPosition'), '普通点位详情不应再依赖点击后显示。');

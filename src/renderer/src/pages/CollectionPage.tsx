@@ -1,15 +1,20 @@
-import { useEffect, useMemo, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, ItemThumb, PageHead, ProgressLine } from '../components/ui.tsx';
 import { MapPinIcon } from '../components/icons.tsx';
 import { deriveProfile } from '../lib/derive.ts';
 import {
   COLLECTION_GROUPS,
+  armorSetStatus,
   compareCollectionEntries,
   deriveCollections,
   entryStatus,
   enrichCollectionLocations,
+  groupArmorSetVariants,
   groupArmorSets,
   isDlcArmorId,
+  type ArmorSetVariant,
+  type ArmorSetVariantGroup,
   type CollectionEntry,
   type CollectionKind,
   type CollectionStatus,
@@ -17,6 +22,7 @@ import {
   type ArmorSetView,
   unresolvedAcquisitionHint,
 } from '../lib/collections.ts';
+import { iconThumbUrl } from '../data/images.ts';
 import { findItemSources, type ItemPlacementSource } from '../lib/locate-item.ts';
 import { fuzzyMatch } from '../lib/fuzzy-search.ts';
 import { useActiveSlot, useSaveContext } from '../lib/save-context.tsx';
@@ -166,36 +172,211 @@ function CollectionEntryCard({
   );
 }
 
-function ArmorSetCard({
+const ARMOR_SLOTS = [
+  { category: 'Head', label: '头部', className: 'head' },
+  { category: 'Body', label: '身体', className: 'body' },
+  { category: 'Arms', label: '腕部', className: 'arms' },
+  { category: 'Legs', label: '腿部', className: 'legs' },
+] as const;
+
+type VisibleArmorSetGroup = ArmorSetVariantGroup & { readonly preferredVariant: ArmorSetVariant };
+
+function armorSetVariantsFor(group: ArmorSetVariantGroup): readonly ArmorSetView[] {
+  return group.altered ? [group.standard, group.altered] : [group.standard];
+}
+
+function armorSlotsFor(view: ArmorSetView, locationsReady: boolean) {
+  return ARMOR_SLOTS.map((slot) => {
+    const entries = view.entries.filter((entry) => entry.category === slot.category);
+    const ownedCount = entries.filter((entry) => entry.owned).length;
+    return {
+      ...slot,
+      entries,
+      ownedCount,
+      status: entries.length > 0 ? armorSetStatus(entries, ownedCount, locationsReady) : 'empty',
+      preview: entries.find((entry) => entry.owned) ?? entries[0],
+    } as const;
+  });
+}
+
+const ArmorSetCard = memo(function ArmorSetCard({
+  set,
+  onOpen,
+  locationsReady,
+}: {
+  set: VisibleArmorSetGroup;
+  onOpen: (key: string) => void;
+  locationsReady: boolean;
+}) {
+  const [variant, setVariant] = useState<ArmorSetVariant>(set.preferredVariant);
+  useEffect(() => setVariant(set.preferredVariant), [set.preferredVariant]);
+  const view = variant === 'altered' && set.altered ? set.altered : set.standard;
+  const slots = armorSlotsFor(view, locationsReady);
+  const pct = view.entries.length > 0 ? Math.round((view.ownedCount / view.entries.length) * 100) : 0;
+  return (
+    <article className={`collection-set ${view.status}${set.altered ? ' has-variants' : ''}`}>
+      {set.altered && (
+        <div className="collection-set-variant-switch" role="group" aria-label={`${set.def.name}版本`}>
+          <button
+            className={`collection-set-variant-button standard${variant === 'standard' ? ' active' : ''}`}
+            type="button"
+            aria-pressed={variant === 'standard'}
+            onClick={() => setVariant('standard')}
+          >
+            原装
+          </button>
+          <button
+            className={`collection-set-variant-button altered${variant === 'altered' ? ' active' : ''}`}
+            type="button"
+            aria-pressed={variant === 'altered'}
+            onClick={() => setVariant('altered')}
+          >
+            轻装
+          </button>
+        </div>
+      )}
+      <button
+        className="collection-set-toggle"
+        type="button"
+        aria-haspopup="dialog"
+        aria-label={`查看${view.name}详情`}
+        onClick={() => onOpen(view.key)}
+      >
+        <span className="collection-set-main">
+          <span
+            className="armor-set-display"
+            role="img"
+            aria-label={`${view.name}穿戴展示，${view.ownedCount}件已拥有，共${view.entries.length}件`}
+          >
+            <span className="armor-stand-silhouette" aria-hidden="true" />
+            {slots.map((slot) => {
+              const imageUrl = iconThumbUrl(slot.preview?.icon);
+              return (
+                <span
+                  className={`armor-set-piece ${slot.className} ${slot.status}`}
+                  key={slot.category}
+                  title={slot.preview ? `${slot.preview.name} · ${slot.ownedCount}/${slot.entries.length}` : `${slot.label}空位`}
+                >
+                  {imageUrl
+                    ? <img src={imageUrl} alt="" loading="lazy" decoding="async" />
+                    : <span className="armor-set-empty-mark" aria-hidden="true">—</span>}
+                  <span className="armor-set-piece-label">{slot.label}</span>
+                  <span className="armor-set-piece-state" aria-hidden="true" />
+                </span>
+              );
+            })}
+          </span>
+
+          <span className="collection-set-info">
+            <span className="collection-set-title-row">
+              <span className="collection-set-name">{set.def.name}</span>
+              <span className="collection-set-meta">
+                <span className="collection-set-dlc">{view.def.dlc ? '黄金树幽影' : '本体'}</span>
+                <span className={`collection-state ${view.status}`}>{statusText(view.status)}</span>
+              </span>
+            </span>
+            <span className="collection-set-progress">
+              <span>收藏进度</span>
+              <strong>{view.ownedCount} / {view.entries.length}</strong>
+              <span className="collection-set-percent">{pct}%</span>
+            </span>
+            <span className="collection-set-bar"><span style={{ width: `${pct}%` }} /></span>
+            <span className="collection-set-slot-strip">
+              {slots.map((slot) => (
+                <span className={`collection-set-slot ${slot.status}`} key={slot.category}>
+                  <span>{slot.label}</span>
+                  <strong>{slot.entries.length > 0 ? `${slot.ownedCount}/${slot.entries.length}` : '无'}</strong>
+                </span>
+              ))}
+            </span>
+            <span className="collection-set-action">
+              <span>查看套装详情</span>
+              <span className="collection-set-caret" aria-hidden="true" />
+            </span>
+          </span>
+        </span>
+      </button>
+    </article>
+  );
+});
+
+function ArmorSetDialog({
   view,
-  expanded,
-  onToggle,
+  onClose,
   onLocate,
   locationsReady,
 }: {
   view: ArmorSetView;
-  expanded: boolean;
-  onToggle: () => void;
+  onClose: () => void;
   onLocate: (entry: CollectionEntry, source: CollectionEntry['sources'][number]) => void;
   locationsReady: boolean;
 }) {
-  return (
-    <article className={`collection-set ${view.status}`}>
-      <button className="collection-set-head" type="button" aria-expanded={expanded} onClick={onToggle}>
-        <span className="collection-set-name">{view.def.name}</span>
-        <span className="collection-set-count">{view.ownedCount} / {view.entries.length}</span>
-        <span className="collection-set-dlc">{view.def.dlc ? '黄金树幽影' : '本体'}</span>
-        <span className={`collection-state ${view.status}`}>{statusText(view.status)}</span>
-        <span className="collection-set-caret">{expanded ? '收起' : '展开'}</span>
-      </button>
-      {expanded && (
-        <div className="collection-set-body">
-          {view.entries.map((entry) => (
-            <CollectionEntryCard key={entry.key} entry={entry} locationsReady={locationsReady} onLocate={onLocate} />
+  const slots = armorSlotsFor(view, locationsReady);
+  const pct = view.entries.length > 0 ? Math.round((view.ownedCount / view.entries.length) * 100) : 0;
+  const titleId = `armor-set-dialog-title-${view.def.order}-${view.variant}`;
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="armor-set-modal-backdrop"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section className="armor-set-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+        <header className="armor-set-dialog-head">
+          <div className="armor-set-dialog-title">
+            <div className="armor-set-dialog-meta">
+              {view.hasAlteredVariant && (
+                <span className={`collection-set-variant ${view.variant}`}>
+                  {view.variant === 'altered' ? '轻装' : '原装'}
+                </span>
+              )}
+              <span>{view.def.dlc ? '黄金树幽影' : '本体'}</span>
+              <span className={`collection-state ${view.status}`}>{statusText(view.status)}</span>
+            </div>
+            <h2 id={titleId}>{view.name}</h2>
+            <div className="armor-set-dialog-progress">
+              <span>收藏进度</span>
+              <strong>{view.ownedCount} / {view.entries.length}</strong>
+              <span>{pct}%</span>
+              <span className="collection-set-bar"><span style={{ width: `${pct}%` }} /></span>
+            </div>
+          </div>
+          <div className="armor-set-dialog-tools">
+            <button className="armor-set-dialog-close" type="button" aria-label="关闭套装详情" onClick={onClose} autoFocus>
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+        </header>
+        <div className="collection-set-body armor-set-dialog-body">
+          {slots.filter((slot) => slot.entries.length > 0).map((slot, index) => (
+            <section className="collection-set-part-group" key={slot.category}>
+              <div className="collection-set-part-heading">
+                <span>{String(index + 1).padStart(2, '0')}</span>
+                <div>
+                  <h3>{slot.label}</h3>
+                  <p>{slot.entries.length > 1 ? `${slot.entries.length} 个同部位部件` : slot.entries[0].name}</p>
+                </div>
+              </div>
+              <div className="collection-set-part-entries">
+                {slot.entries.map((entry) => (
+                  <CollectionEntryCard key={entry.key} entry={entry} locationsReady={locationsReady} onLocate={onLocate} />
+                ))}
+              </div>
+            </section>
           ))}
         </div>
-      )}
-    </article>
+      </section>
+    </div>,
+    document.body,
   );
 }
 
@@ -212,7 +393,7 @@ export function CollectionPage() {
   const [armorView, setArmorView] = useState<'set' | 'piece'>('set');
   const [query, setQuery] = useState('');
   const [resultLimit, setResultLimit] = useState(240);
-  const [expandedSets, setExpandedSets] = useState<ReadonlySet<string>>(new Set());
+  const [selectedSetKey, setSelectedSetKey] = useState<string | null>(null);
   const setViewActive = category === 'armor' && armorView === 'set';
 
   useEffect(() => {
@@ -262,14 +443,18 @@ export function CollectionPage() {
   const visibleSets = useMemo(() => {
     if (!locatedCatalog || !setViewActive) return null;
     const grouped = groupArmorSets(locatedCatalog.entries, locationsReady);
-    const sets = grouped.sets
-      .filter((view) => status === 'all' || view.status === status)
-      .filter((view) => world === 'all' || (world === 'dlc' ? view.def.dlc : !view.def.dlc))
-      .filter((view) => {
-        if (!query.trim()) return true;
-        const text = [view.def.name, ...view.entries.map((entry) => `${entry.name} ${entry.en} ${entry.category}`)].join(' ');
-        return fuzzyMatch(query, text);
+    const sets = groupArmorSetVariants(grouped.sets)
+      .filter((set) => world === 'all' || (world === 'dlc' ? set.def.dlc : !set.def.dlc))
+      .map((set) => {
+        const matchingVariants = armorSetVariantsFor(set).filter((view) => {
+          if (status !== 'all' && view.status !== status) return false;
+          if (!query.trim()) return true;
+          const text = [view.name, view.def.name, ...view.entries.map((entry) => `${entry.name} ${entry.en} ${entry.category}`)].join(' ');
+          return fuzzyMatch(query, text);
+        });
+        return matchingVariants.length > 0 ? { ...set, preferredVariant: matchingVariants[0].variant } : null;
       })
+      .filter((set): set is VisibleArmorSetGroup => set !== null)
       .sort((left, right) => left.def.order - right.def.order);
     const singles = grouped.singles
       .filter((entry) => status === 'all' || entryStatus(entry, locationsReady) === status)
@@ -282,25 +467,25 @@ export function CollectionPage() {
     return { sets, singles };
   }, [locatedCatalog, locationsReady, query, setViewActive, status, world]);
 
+  const locate = useCallback((entry: CollectionEntry, source: CollectionEntry['sources'][number]) => {
+    requestMapFocus({ ...source.projected, name: `${entry.name} · ${source.referenceLabel ?? source.sourceLabel}` });
+  }, [requestMapFocus]);
+  const openSet = useCallback((key: string) => setSelectedSetKey(key), []);
+  const closeSet = useCallback(() => setSelectedSetKey(null), []);
+  const selectedSet = visibleSets?.sets.flatMap((set) => armorSetVariantsFor(set)).find((view) => view.key === selectedSetKey) ?? null;
+
+  useEffect(() => {
+    if (selectedSetKey && (!setViewActive || (visibleSets && !selectedSet))) setSelectedSetKey(null);
+  }, [selectedSet, selectedSetKey, setViewActive, visibleSets]);
+
   if (!slot || !profile || !locatedCatalog) return null;
 
   const groups = locatedCatalog.groups.filter((group) => category === 'all' || group.kind === category);
   const unresolved = locatedCatalog.entries.filter((entry) => entryStatus(entry, locationsReady) === 'unresolved').length;
 
-  const locate = (entry: CollectionEntry, source: CollectionEntry['sources'][number]) => {
-    requestMapFocus({ ...source.projected, name: `${entry.name} · ${source.referenceLabel ?? source.sourceLabel}` });
-  };
   const statusOptions: readonly StatusFilter[] = setViewActive
     ? ['all', 'owned', 'missing', 'partial', 'unresolved']
     : ['all', 'owned', 'missing', 'unresolved'];
-  const toggleSet = (name: string) => {
-    setExpandedSets((current) => {
-      const next = new Set(current);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
-      return next;
-    });
-  };
 
   return (
     <div className="page collection-page">
@@ -370,13 +555,11 @@ export function CollectionPage() {
       </div>
       {setViewActive && visibleSets ? (
         <div className="collection-set-list">
-          {visibleSets.sets.map((view) => (
+          {visibleSets.sets.map((set) => (
             <ArmorSetCard
-              key={view.def.name}
-              view={view}
-              expanded={expandedSets.has(view.def.name)}
-              onToggle={() => toggleSet(view.def.name)}
-              onLocate={locate}
+              key={set.key}
+              set={set}
+              onOpen={openSet}
               locationsReady={locationsReady}
             />
           ))}
@@ -401,9 +584,17 @@ export function CollectionPage() {
           ))}
         </div>
       )}
-      {visibleEntries.length === 0 && <div className="notice">没有符合当前筛选条件的收藏条目。</div>}
+      {!setViewActive && visibleEntries.length === 0 && <div className="notice">没有符合当前筛选条件的收藏条目。</div>}
       {resultLimit < visibleEntries.length && (
         <button className="btn" onClick={() => setResultLimit((limit) => limit + 240)}>加载更多</button>
+      )}
+      {selectedSet && (
+        <ArmorSetDialog
+          view={selectedSet}
+          onClose={closeSet}
+          onLocate={locate}
+          locationsReady={locationsReady}
+        />
       )}
     </div>
   );
