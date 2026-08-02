@@ -153,7 +153,7 @@ export function OverviewPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <ProgressLine label="Boss 讨伐" value={profile.bossesDefeated} total={profile.bossTotal} />
             <ProgressLine label="赐福点亮" value={profile.gracesLit} total={profile.graceTotal} tone="azure" />
-            <ProgressLine label="地图区块" value={profile.regionsUnlocked} total={REGIONS.length} tone="crimson" />
+            <ProgressLine label="地图区块" value={profile.mapRegionsUnlocked} total={REGIONS.length} tone="crimson" />
           </div>
         </Card>
 

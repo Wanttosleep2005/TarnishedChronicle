@@ -8,6 +8,7 @@ import { BOSSES } from '../data/generated/bosses.ts';
 import { FIXED_BOSSES, type FixedBoss } from './boss-data.ts';
 import { GOODS, type Good } from '../data/generated/goods.ts';
 import { GRACES, type Grace } from '../data/generated/graces.ts';
+import { REGIONS } from '../data/generated/regions.ts';
 import { SPELLS, type Spell } from '../data/generated/spells.ts';
 import { SPIRIT_ASHES } from '../data/generated/spirit-ashes.ts';
 import { TALISMANS, type Talisman } from '../data/generated/talismans.ts';
@@ -25,6 +26,7 @@ export const spellById: ReadonlyMap<number, Spell> = new Map(SPELLS.map((s) => [
 export const aowById: ReadonlyMap<number, AshOfWar> = new Map(ASHES_OF_WAR.map((a) => [a.id, a]));
 const spiritAshIds = new Set(SPIRIT_ASHES.map((s) => s.id));
 const graceByEntityId: ReadonlyMap<number, Grace> = new Map(GRACES.map((grace) => [grace.bonfireEntityId, grace]));
+const VISIBLE_REGION_IDS = new Set(REGIONS.map((region) => region.id));
 
 /** 存档记录的是运行时赐福实体 ID，目录使用地图实体 ID，两者通常相差 1000。 */
 export function graceForEntityId(entityId: number): Grace | undefined {
@@ -439,7 +441,10 @@ export interface CharacterProfile {
   graceRows: GraceRow[];
   gracesLit: number;
   graceTotal: number;
+  /** 存档原始地区计数（含联机匹配/隐藏分区），用于趣味徽章。 */
   regionsUnlocked: number;
+  /** 仅统计 REGIONS 中可见地图区块的数量，用于角色总览进度条。 */
+  mapRegionsUnlocked: number;
   equipment: EquipmentView;
   inventory: InventoryEntry[];
   ownedWeaponBaseIds: Set<number>;
@@ -541,6 +546,7 @@ export function deriveProfile(slot: LeanSlot): CharacterProfile {
     gracesLit: graceRows.filter((g) => g.lit).length,
     graceTotal: graceRows.length,
     regionsUnlocked: slot.regions.unlocked_regions_count,
+    mapRegionsUnlocked: slot.regions.unlocked_regions.filter((id) => VISIBLE_REGION_IDS.has(id)).length,
     equipment,
     inventory,
     ownedWeaponBaseIds,

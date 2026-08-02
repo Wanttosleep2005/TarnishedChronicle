@@ -1,6 +1,6 @@
 {
   "name": "tarnished-chronicle",
-  "version": "0.19.0",
+  "version": "0.19.1",
   "description": "存档编年史 — 艾尔登法环 / 杀戮尖塔 2 / 黑暗之魂 3 存档分析:进度、图鉴、成就与 LLM 游玩故事",
   "author": "Tarnished Chronicle Contributors",
   "main": "./out/main/index.js",
@@ -39,6 +39,7 @@
     "test:collection-acquisition": "tsx scripts/collection-acquisition-test.ts",
     "test:collection-status": "tsx scripts/collection-status-test.ts",
     "test:collection-sets": "tsx scripts/collection-sets-test.ts",
+    "test:region-progress": "tsx scripts/region-progress-test.ts",
     "export:armor-table": "tsx scripts/export-gamersky-armor-table.ts",
     "export:armor-xlsx": "python scripts/export-gamersky-armor-xlsx.py",
     "package": "electron-vite build && electron-builder --win",
