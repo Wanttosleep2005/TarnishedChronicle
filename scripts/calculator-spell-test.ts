@@ -50,8 +50,11 @@ check(Math.abs((magicPart?.attack ?? 0) - 1255.6) < 0.01, `母亲杖 +25 帚星�
 check(Math.abs(estimate.damagePerHit - 1898.4672) < 0.01, `防御 84、承伤 1.68 时伤害应为 1898.4672，实际 ${estimate.damagePerHit}`);
 check(estimate.hitsToKill === 6, `击杀次数应为 6，实际 ${estimate.hitsToKill}`);
 
-const scaduEstimate = estimateSpellAttack(attrs, attack!, catalyst!, 25, enemy, [], { scaduLevel: 20 });
-check(Math.abs(scaduEstimate.damagePerHit - 1898.4672 * 2.05) < 0.05, `幽影树庇佑 +20 应乘 2.05，实际 ${scaduEstimate.damagePerHit}`);
+const mainlandScaduEstimate = estimateSpellAttack(attrs, attack!, catalyst!, 25, enemy, [], { world: 'lands-between', scaduLevel: 20 });
+check(Math.abs(mainlandScaduEstimate.damagePerHit - 1898.4672) < 0.05, `交界地不应应用幽影树庇佑，实际 ${mainlandScaduEstimate.damagePerHit}`);
+
+const shadowScaduEstimate = estimateSpellAttack(attrs, attack!, catalyst!, 25, enemy, [], { world: 'shadow-realm', scaduLevel: 20 });
+check(Math.abs(shadowScaduEstimate.damagePerHit - 1898.4672 * 2.05) < 0.05, `幽影地幽影树庇佑 +20 应乘 2.05，实际 ${shadowScaduEstimate.damagePerHit}`);
 
 const equippedEstimate = estimateSpellAttack(attrs, attack!, catalyst!, 25, enemy, [], { damageMultipliers: { magic: 1.12 } });
 check(Math.abs(equippedEstimate.damagePerHit - 1898.4672 * 1.12) < 0.05, `装备魔力加成应乘 1.12，实际 ${equippedEstimate.damagePerHit}`);

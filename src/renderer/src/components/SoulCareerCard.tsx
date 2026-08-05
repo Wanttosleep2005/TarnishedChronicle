@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { formatPlaytime } from '../lib/format.ts';
 import { parseSts2Progress } from '../lib/sts2.ts';
 import { useSaveContext } from '../lib/save-context.tsx';
+import type { Ds3Root, Sts2Root } from '../../../shared/contracts.ts';
 
 interface CareerData {
   sts2Games: number;
@@ -10,16 +11,22 @@ interface CareerData {
   ds3Playtime: number;
 }
 
-export function SoulCareerCard() {
+export function SoulCareerCard({
+  sts2Roots,
+  ds3Roots,
+}: {
+  readonly sts2Roots: readonly Sts2Root[];
+  readonly ds3Roots: readonly Ds3Root[];
+}) {
   const { save } = useSaveContext();
   const [data, setData] = useState<CareerData | null>(null);
   const erDeaths = useMemo(() => save?.slots.reduce((sum, slot) => sum + slot.deaths, 0) ?? 0, [save]);
 
   useEffect(() => {
     let cancelled = false;
+    setData(null);
     void (async () => {
       try {
-        const [sts2Roots, ds3Roots] = await Promise.all([window.api.sts2Detect(), window.api.ds3Detect()]);
         let sts2Games = 0;
         let sts2Losses = 0;
         const sts2Root = sts2Roots[0];
@@ -49,7 +56,9 @@ export function SoulCareerCard() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [sts2Roots, ds3Roots]);
+
+  const visibleGameCount = 1 + Number(sts2Roots.length > 0) + Number(ds3Roots.length > 0);
 
   return (
     <div className="soul-career-card">
@@ -58,10 +67,10 @@ export function SoulCareerCard() {
         <div className="soul-career-title">魂系生涯</div>
         <div className="soul-career-note">只汇总各游戏存档能可靠提供的数字</div>
       </div>
-      <div className="soul-career-grid">
+      <div className={`soul-career-grid soul-career-grid--${visibleGameCount}`}>
         <div><span>艾尔登法环</span><strong>{erDeaths.toLocaleString('zh-CN')}</strong><small>累计死亡</small></div>
-        <div><span>杀戮尖塔 II</span><strong>{data?.sts2Games ?? '—'}</strong><small>{data ? `对局 · 失败 ${data.sts2Losses}` : '扫描中'}</small></div>
-        <div><span>黑暗之魂 III</span><strong>{data?.ds3Characters ?? '—'}</strong><small>{data ? `${formatPlaytime(data.ds3Playtime)} · 未读取死亡数` : '扫描中'}</small></div>
+        {sts2Roots.length > 0 && <div><span>杀戮尖塔 II</span><strong>{data?.sts2Games ?? '—'}</strong><small>{data ? `对局 · 失败 ${data.sts2Losses}` : '扫描中'}</small></div>}
+        {ds3Roots.length > 0 && <div><span>黑暗之魂 III</span><strong>{data?.ds3Characters ?? '—'}</strong><small>{data ? `${formatPlaytime(data.ds3Playtime)} · 未读取死亡数` : '扫描中'}</small></div>}
       </div>
     </div>
   );

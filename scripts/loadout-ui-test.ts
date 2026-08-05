@@ -9,6 +9,7 @@ import {
 } from '../src/renderer/src/lib/weapon-whetblades.ts';
 
 const page = readFileSync(new URL('../src/renderer/src/pages/LoadoutPage.tsx', import.meta.url), 'utf8');
+const equipmentPage = readFileSync(new URL('../src/renderer/src/pages/EquipmentPage.tsx', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../src/renderer/src/styles.css', import.meta.url), 'utf8');
 
 function check(condition: boolean, message: string): void {
@@ -32,6 +33,9 @@ check(!page.includes('weapon.name.endsWith(base.name)'), '质变中文名不应�
 check(page.includes('affinityAvailableForSave(weapon.id - base.id, profile.ownedGoodsIds)'), '武器质变可用性应按当前存档砥石刀判断。');
 check(page.includes('variant.available'), '武器质变应区分可用性与实际持有。');
 check(page.includes('<small className="is-missing">未拥有</small>'), '缺少砥石刀对应的质变应显示未拥有。');
+check(equipmentPage.includes('className="page equipment-page"'), '行囊页应提供专用响应式作用域。');
+check(styles.includes('container-type: inline-size') && styles.includes('@container main-content'), '主内容应按扣除左栏后的实际宽度响应。');
+check(styles.includes('.equipment-page > .grid-2') && styles.includes('.loadout-workspace'), '行囊与配装器双栏应在窄主内容中折叠。');
 
 const allWhetblades = new Set<number>(Object.values(WHETBLADE_GOODS_IDS));
 const affinityOffsets = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200];

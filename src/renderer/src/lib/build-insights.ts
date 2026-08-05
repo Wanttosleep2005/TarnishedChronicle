@@ -1,6 +1,20 @@
 import { DAMAGE_TYPES, type AttackRating } from './ar.ts';
 import { weaponById, type CharacterProfile } from './derive.ts';
 import { CLEAR_COUNT_SCALING, type EnemyCombatRow, type WeaponCombatAction } from '../data/generated/combat-data.ts';
+import { SPELL_SCADU_GROWTH } from '../data/generated/spell-catalyst-graphs.ts';
+
+export type CombatWorld = 'lands-between' | 'shadow-realm';
+
+export interface CombatContext {
+  readonly world: CombatWorld;
+  readonly scaduLevel: number;
+}
+
+export function scaduDamageMultiplier(context: Readonly<Partial<CombatContext>> = {}): number {
+  if (context.world !== 'shadow-realm') return 1;
+  const level = Math.max(0, Math.min(20, Math.round(context.scaduLevel ?? 0)));
+  return SPELL_SCADU_GROWTH[level]?.damageMultiplier ?? 1;
+}
 
 export interface DamageBreakdown {
   type: string;
@@ -89,7 +103,9 @@ export function estimateEnemyHit(
   attack: AttackRating,
   action: WeaponCombatAction,
   newGameCycle = 0,
+  context: Readonly<Partial<CombatContext>> = {},
 ): EnemyHitEstimate {
+  const scaduMultiplier = scaduDamageMultiplier(context);
   const actionMultipliers = action.damageMultiplierParts.length > 0
     ? action.damageMultiplierParts.map((value) => value / 100)
     : [(action.damageMultiplier ?? 100) / 100];
@@ -109,7 +125,7 @@ export function estimateEnemyHit(
         takenType,
         partIndex,
         actionMultiplier,
-        damage: damageAfterDefense(scaledAttack, defense) * taken,
+        damage: damageAfterDefense(scaledAttack, defense) * taken * scaduMultiplier,
       };
     });
   });

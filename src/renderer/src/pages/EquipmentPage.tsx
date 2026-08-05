@@ -209,7 +209,7 @@ export function EquipmentPage({ onOpenCollection }: { onOpenCollection?: () => v
   const gestureIds = slot.gestures.filter((id) => id > 0 && id < 0xfffffffe);
 
   return (
-    <div className="page">
+    <div className="page equipment-page">
       <PageHead
         title="装备与行囊"
         sub="当前装备、记忆法术与全部持有物"

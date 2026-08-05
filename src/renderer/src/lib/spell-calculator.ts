@@ -9,7 +9,6 @@ import {
   SPELL_ATK_CORRECTS,
   SPELL_CATALYST_PARAMS,
   SPELL_CURVE_GRAPHS,
-  SPELL_SCADU_GROWTH,
   SPELL_WEAPON_UP_GROWTH,
   type SpellCatalystParams,
 } from '../data/generated/spell-catalyst-graphs.ts';
@@ -20,6 +19,8 @@ import {
   effectiveEnemyHp,
   effectiveEnemyStatusResistance,
   effectivePoiseDamage,
+  scaduDamageMultiplier,
+  type CombatWorld,
 } from './build-insights.ts';
 
 const ELEMENT_CONDITION: Readonly<Record<DamageType, string>> = {
@@ -129,6 +130,7 @@ export function estimateSpellAttack(
   buffs: readonly SpellCalculatorBuff[] = [],
   options: {
     readonly newGameCycle?: number;
+    readonly world?: CombatWorld;
     readonly scaduLevel?: number;
     readonly focusCostMultiplier?: Readonly<{ magic: number; incantation: number }>;
     readonly damageMultipliers?: Readonly<Partial<Record<DamageType, number>>>;
@@ -136,8 +138,7 @@ export function estimateSpellAttack(
 ): SpellAttackEstimate {
   const params = catalystParamsFor(catalyst);
   const newGameCycle = Math.max(0, Math.min(7, Math.round(options.newGameCycle ?? 0)));
-  const scadu = SPELL_SCADU_GROWTH[Math.max(0, Math.min(20, Math.round(options.scaduLevel ?? 0)))];
-  const scaduMultiplier = scadu?.damageMultiplier ?? 1;
+  const scaduMultiplier = scaduDamageMultiplier(options);
   const weaponUpId = catalyst.somber
     ? catalyst.reinforcementCurve + Math.min(10, Math.max(0, upgrade))
     : catalyst.reinforcementCurve + Math.min(25, Math.max(0, upgrade));

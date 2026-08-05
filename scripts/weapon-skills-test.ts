@@ -44,10 +44,14 @@ if (attack && panel) {
   } as unknown as EnemyCombatRow;
   const ng = estimateSkillAttack(attrs, 9_060_000, 10, panel.oneHand, moonveil!, attack, enemy);
   const ngPlusTwo = estimateSkillAttack(attrs, 9_060_000, 10, panel.oneHand, moonveil!, attack, enemy, [], false, 2);
+  const mainlandScadu = estimateSkillAttack(attrs, 9_060_000, 10, panel.oneHand, moonveil!, attack, enemy, [], false, 0, { world: 'lands-between', scaduLevel: 20 });
+  const shadowScadu = estimateSkillAttack(attrs, 9_060_000, 10, panel.oneHand, moonveil!, attack, enemy, [], false, 0, { world: 'shadow-realm', scaduLevel: 20 });
   check(
     (ngPlusTwo.hitsToKill ?? 0) > (ng.hitsToKill ?? 0) && (ngPlusTwo.poiseHits ?? 0) > (ng.poiseHits ?? 0),
     'Weapon skill calculation must apply New Game HP and poise scaling',
   );
+  check(Math.abs(mainlandScadu.damage - ng.damage) < 0.001, '交界地战技不应应用幽影树庇佑');
+  check(Math.abs(shadowScadu.damage - ng.damage * 2.05) < 0.001, '幽影地战技应应用幽影树庇佑 +20');
   check(Math.abs((power.magic ?? 0) - 1_164.8) < 0.01, '隙间月影刀波攻击力应与 Excel 缓存值一致');
 }
 

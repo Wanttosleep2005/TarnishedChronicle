@@ -1,6 +1,6 @@
 import { Fragment, useMemo, useState } from 'react';
 import { Card, PageHead, Stat } from '../../components/ui.tsx';
-import { ENEMY_COMBAT_DATA, SPELL_COMBAT_DATA } from '../../data/generated/combat-data.ts';
+import { ENEMY_COMBAT_DATA, SPELL_COMBAT_DATA, type EnemyCombatRow } from '../../data/generated/combat-data.ts';
 import {
   SKILL_ATTACKS,
   SKILL_BUFFS,
@@ -21,6 +21,8 @@ import {
   effectiveEnemyStatusResistance,
   estimateEnemyHit,
   newGameLabel,
+  scaduDamageMultiplier,
+  type CombatWorld,
 } from '../../lib/build-insights.ts';
 import {
   damageMultiplierLabel,
@@ -57,6 +59,7 @@ import {
 type CalculatorView = 'weapon' | 'skills' | 'spells';
 type WeaponScope = 'owned' | 'all';
 type WeaponHand = 'oneHand' | 'twoHand';
+type EnemyScope = 'boss' | 'all';
 
 interface CalculatorWeapon {
   readonly id: number;
@@ -74,6 +77,7 @@ interface CalculatorWeapon {
 const PLAYABLE_ENEMIES = ENEMY_COMBAT_DATA.filter((enemy) =>
   enemy.hp !== null && enemy.hp > 0 && !enemy.nameEn.startsWith('Internal:') && !/\bMelina\b/i.test(enemy.nameEn),
 );
+const BOSS_ENEMIES = PLAYABLE_ENEMIES.filter((enemy) => enemy.kind === 'Boss');
 const SPELL_COMBAT_GROUPS = groupSpellCombatRows(SPELL_COMBAT_DATA);
 const SPELL_CALCULATOR_ATTACK_BY_ID = new Map<number, SpellCalculatorAttack>(
   SPELL_CALCULATOR_ATTACKS.map((attack) => [attack.atkId, attack]),
@@ -81,6 +85,9 @@ const SPELL_CALCULATOR_ATTACK_BY_ID = new Map<number, SpellCalculatorAttack>(
 const SPELL_CALCULATOR_BUFF_BY_ID = new Map<string, SpellCalculatorBuff>(
   SPELL_CALCULATOR_BUFFS.map((buff) => [buff.id, buff]),
 );
+const DEFAULT_SPELL_ATK_ID = SPELL_COMBAT_DATA.find(
+  (attack) => typeof attack.atkId === 'number' && SPELL_CALCULATOR_ATTACK_BY_ID.has(attack.atkId),
+)?.atkId ?? null;
 const SKILL_BUFF_BY_ID = new Map<string, SkillBuff>(SKILL_BUFFS.map((buff) => [buff.id, buff]));
 const SKILL_WEAPON_BY_ID = new Map(SKILL_WEAPONS.map((weapon) => [weapon.id, weapon]));
 const SPELL_BONUS_SLOT_CATEGORIES = ['减防debuff', '装备buff', '立誓类buff', '身体类buff', '副手类buff'] as const;
@@ -140,6 +147,122 @@ function bonusPercent(multiplier: number): string {
   return `${Math.round((multiplier - 1) * 1000) / 10}%`;
 }
 
+function combatWorldLabel(world: CombatWorld): string {
+  return world === 'shadow-realm' ? '幽影地' : '交界地';
+}
+
+function scaduStatusLabel(world: CombatWorld, scaduLevel: number): string {
+  return world === 'shadow-realm' ? `幽影地 +${scaduLevel} 已计入` : '交界地不生效';
+}
+
+function CombatWorldControls({
+  world,
+  scaduLevel,
+  onWorldChange,
+  onScaduLevelChange,
+}: {
+  readonly world: CombatWorld;
+  readonly scaduLevel: number;
+  readonly onWorldChange: (world: CombatWorld) => void;
+  readonly onScaduLevelChange: (level: number) => void;
+}) {
+  return <>
+    <div className="calculator-segmented" role="group" aria-label="战斗地点">
+      <button type="button" className={`btn small ${world === 'lands-between' ? 'primary' : ''}`} onClick={() => onWorldChange('lands-between')}>交界地</button>
+      <button type="button" className={`btn small ${world === 'shadow-realm' ? 'primary' : ''}`} onClick={() => onWorldChange('shadow-realm')}>幽影地</button>
+    </div>
+    <label className="calculator-upgrade calculator-scadu"><span>幽影树庇佑</span><select
+      className="select"
+      aria-label="幽影树庇佑等级"
+      value={scaduLevel}
+      disabled={world !== 'shadow-realm'}
+      onChange={(event) => onScaduLevelChange(Number(event.target.value))}
+    >
+      {Array.from({ length: 21 }, (_, level) => <option key={level} value={level}>庇佑 +{level}</option>)}
+    </select></label>
+  </>;
+}
+
+function EnemyScopeControls({
+  scope,
+  onScopeChange,
+  visibleCount,
+  totalCount,
+}: {
+  readonly scope: EnemyScope;
+  readonly onScopeChange: (scope: EnemyScope) => void;
+  readonly visibleCount: number;
+  readonly totalCount: number;
+}) {
+  return <>
+    <div className="calculator-segmented" role="group" aria-label="目标范围">
+      <button type="button" className={`btn small ${scope === 'boss' ? 'primary' : ''}`} onClick={() => onScopeChange('boss')}>Boss</button>
+      <button type="button" className={`btn small ${scope === 'all' ? 'primary' : ''}`} onClick={() => onScopeChange('all')}>全部敌人</button>
+    </div>
+    <span className="pill">{visibleCount} / {totalCount}</span>
+  </>;
+}
+
+function TargetCombatSummary({
+  enemy,
+  newGameCycle,
+  world,
+  scaduLevel,
+}: {
+  readonly enemy: EnemyCombatRow;
+  readonly newGameCycle: number;
+  readonly world: CombatWorld;
+  readonly scaduLevel: number;
+}) {
+  const hp = effectiveEnemyHp(enemy, newGameCycle);
+  const scaduMultiplier = scaduDamageMultiplier({ world, scaduLevel });
+  return <section className="target-combat-summary" aria-label="目标战斗数据">
+    <header className="target-combat-head">
+      <div><strong>{enemy.nameVariant || enemy.name}</strong><span>{enemy.kind === 'Boss' ? 'Boss 参数' : '敌人参数'}</span></div>
+      <div><span>{enemy.region}</span><span>{newGameLabel(newGameCycle)}</span><span>{scaduStatusLabel(world, scaduLevel)}</span></div>
+    </header>
+    <div className="target-combat-metrics">
+      <div><span>HP</span><strong>{formatNumber(hp ?? 0)}</strong><small>{newGameLabel(newGameCycle)} 后数值</small></div>
+      <div><span>韧性</span><strong>{enemy.saDurability && enemy.saDurability > 0 ? enemy.saDurability : '不可破韧'}</strong><small>连续命中且未恢复时</small></div>
+      <div><span>战斗地点</span><strong>{combatWorldLabel(world)}</strong><small>{world === 'shadow-realm' ? `庇佑 ${scaduMultiplier.toFixed(3)}x 已计入` : '庇佑未计入'}</small></div>
+    </div>
+    <details className="target-combat-details">
+      <summary>防御、承伤与异常抗性</summary>
+      <section className="combat-data-section">
+        <h4>防御值 <span>基础数值 × 场景倍率 × {newGameLabel(newGameCycle)} 修正</span></h4>
+        <div className="combat-data-grid defense-grid">
+          {DEFENSE_FIELDS.map(([key, label]) => <div className="combat-data-item" key={key}>
+            <span>{label}</span>
+            <strong>{Math.round(effectiveEnemyDefense(enemy, key, newGameCycle))}</strong>
+            <small>{enemy.defense[key] ?? '—'} × {enemy.defenseScale[key]?.toFixed(3) ?? '—'}{newGameCycle > 0 ? ` × ${enemy.newGameDefenseScale[key] ?? '—'}` : ''}</small>
+          </div>)}
+        </div>
+      </section>
+      <section className="combat-data-section">
+        <h4>承伤倍率 <span>低于 1 为减伤，高于 1 为弱点</span></h4>
+        <div className="combat-data-grid damage-taken-grid">
+          {DAMAGE_TAKEN_FIELDS.map(([key, label]) => <div className="combat-data-item" key={key}>
+            <span>{label}</span>
+            <strong>{damageTakenLabel(enemy.damageTaken[key])}</strong>
+          </div>)}
+        </div>
+      </section>
+      <section className="combat-data-section">
+        <h4>异常状态抗性 <span>{newGameLabel(newGameCycle)} 修正后；数值越高越难触发</span></h4>
+        <div className="combat-data-grid status-resistance-grid">
+          {STATUS_FIELDS.map(([key, label]) => <div className="combat-data-item" key={key}>
+            <span>{label}</span>
+            <strong className={enemy.statusImmunity[key] ? 'immune' : ''}>
+              {enemy.statusImmunity[key] ? '免疫' : effectiveEnemyStatusResistance(enemy, key, newGameCycle)?.toFixed(0) ?? '—'}
+            </strong>
+            {!enemy.statusImmunity[key] && <small>基础 {enemy.baseStatusResistance[key] ?? '—'}</small>}
+          </div>)}
+        </div>
+      </section>
+    </details>
+  </section>;
+}
+
 function calculatorWeaponName(weapon: Weapon, base: Weapon): string {
   const baseName = zhItemNameByKind('weapon', base.id) ?? base.name;
   const affinity = weaponAffinityLabel(weapon, base);
@@ -156,19 +279,22 @@ export function CalculatorPage() {
   const [weaponUpgrade, setWeaponUpgrade] = useState<number | null>(null);
   const [weaponHand, setWeaponHand] = useState<WeaponHand>('oneHand');
   const [newGameCycle, setNewGameCycle] = useState(0);
-  const [selectedEnemyId, setSelectedEnemyId] = useState(PLAYABLE_ENEMIES[0]?.npcParamId ?? 0);
+  const [enemyScope, setEnemyScope] = useState<EnemyScope>('boss');
+  const [selectedEnemyId, setSelectedEnemyId] = useState(BOSS_ENEMIES[0]?.npcParamId ?? 0);
+  const [combatWorld, setCombatWorld] = useState<CombatWorld>('lands-between');
+  const [scaduLevel, setScaduLevel] = useState(0);
   const [selectedAction, setSelectedAction] = useState('单手 轻击 1');
   const [selectedSkillName, setSelectedSkillName] = useState('');
+  const [selectedSkillAttackId, setSelectedSkillAttackId] = useState<number | null>(null);
   const [selectedSkillBuffIds, setSelectedSkillBuffIds] = useState<readonly string[]>([]);
   const [enemySearch, setEnemySearch] = useState('');
   const [spellSearch, setSpellSearch] = useState('');
   const [spellType, setSpellType] = useState<'all' | 'Sorcery' | 'Incantation'>('all');
   const [expandedSpellGroups, setExpandedSpellGroups] = useState<ReadonlySet<string>>(() => new Set());
-  const [selectedSpellAtkId, setSelectedSpellAtkId] = useState<number | null>(null);
+  const [selectedSpellAtkId, setSelectedSpellAtkId] = useState<number | null>(DEFAULT_SPELL_ATK_ID);
   const [selectedSpellBuffIds, setSelectedSpellBuffIds] = useState<readonly string[]>([]);
   const [spellCatalystKey, setSpellCatalystKey] = useState('');
   const [spellUpgrade, setSpellUpgrade] = useState<number | null>(null);
-  const [spellScaduLevel, setSpellScaduLevel] = useState(0);
 
   if (!slot || !profile) return null;
 
@@ -218,11 +344,11 @@ export function CalculatorPage() {
       ? weaponActionBreakdownLabel(chosenAction.pvePoiseText)
       : weaponActionBreakdownLabel(chosenAction.physicalAttackType)
     : '';
-  const filteredEnemies = filterCombatEnemies(PLAYABLE_ENEMIES, enemySearch);
+  const enemyCatalog = enemyScope === 'boss' ? BOSS_ENEMIES : PLAYABLE_ENEMIES;
+  const filteredEnemies = filterCombatEnemies(enemyCatalog, enemySearch);
   const chosenEnemy = filteredEnemies.find((enemy) => enemy.npcParamId === selectedEnemyId) ?? filteredEnemies[0] ?? null;
-  const effectiveEnemyHpValue = chosenEnemy ? effectiveEnemyHp(chosenEnemy, newGameCycle) : null;
   const damageEstimate = chosenEnemy && chosenWeapon && chosenAction
-    ? estimateEnemyHit(chosenEnemy, chosenWeapon.panel, chosenAction, newGameCycle)
+    ? estimateEnemyHit(chosenEnemy, chosenWeapon.panel, chosenAction, newGameCycle, { world: combatWorld, scaduLevel })
     : null;
   const chosenSkillWeapon = chosenWeapon ? SKILL_WEAPON_BY_ID.get(chosenWeapon.baseId) ?? null : null;
   const availableSkills = chosenSkillWeapon ? availableSkillsForWeapon(chosenSkillWeapon) : [];
@@ -246,8 +372,12 @@ export function CalculatorPage() {
       selectedSkillBuffs,
       weaponHand === 'twoHand',
       newGameCycle,
+      { world: combatWorld, scaduLevel },
     ))
     : [];
+  const selectedSkillEstimate = skillEstimates.find((estimate) => estimate.attack.id === selectedSkillAttackId)
+    ?? skillEstimates[0]
+    ?? null;
   const visibleSpellGroups = SPELL_COMBAT_GROUPS
     .map((group) => ({ group, display: spellCombatDisplayName(group.name) }))
     .filter(({ group }) => spellType === 'all' || group.type === spellType)
@@ -296,12 +426,14 @@ export function CalculatorPage() {
       selectedSpellBuffs,
       {
         newGameCycle,
-        scaduLevel: spellScaduLevel,
+        world: combatWorld,
+        scaduLevel,
         focusCostMultiplier: spellEquipMods.focusCost,
         damageMultipliers: spellEquipMods.damageMultipliers,
       },
     )
     : null;
+  const scaduMultiplier = scaduDamageMultiplier({ world: combatWorld, scaduLevel });
   const equipmentNames = new Set([
     ...profile.equipment.talismans,
     ...profile.equipment.armor,
@@ -400,7 +532,7 @@ export function CalculatorPage() {
             value={enemySearch}
             onChange={(event) => setEnemySearch(event.target.value)}
           />
-          <span className="pill">{filteredEnemies.length} / {PLAYABLE_ENEMIES.length}</span>
+          <EnemyScopeControls scope={enemyScope} onScopeChange={setEnemyScope} visibleCount={filteredEnemies.length} totalCount={enemyCatalog.length} />
         </div>
         <div className="row combat-controls">
           <select className="select" aria-label="武器" value={chosenWeapon?.id ?? ''} onChange={(event) => { setSelectedWeaponId(Number(event.target.value)); setWeaponUpgrade(null); }}>
@@ -437,16 +569,17 @@ export function CalculatorPage() {
               ? <option value="">没有匹配的敌人</option>
               : filteredEnemies.map((enemy, index) => <option key={`${enemy.npcParamId}-${index}`} value={enemy.npcParamId}>{enemy.nameVariant || enemy.name} · {enemy.region}</option>)}
           </select>
+          <CombatWorldControls world={combatWorld} scaduLevel={scaduLevel} onWorldChange={setCombatWorld} onScaduLevelChange={setScaduLevel} />
           <label className="calculator-upgrade calculator-cycle"><span>周目</span><select className="select" aria-label="模拟周目" value={newGameCycle} onChange={(event) => setNewGameCycle(Number(event.target.value))}>
             {NEW_GAME_CYCLES.map((cycle) => <option key={cycle} value={cycle}>{newGameLabel(cycle)}</option>)}
           </select></label>
         </div>
         <div className="stat-grid combat-result-grid">
-          <Stat label="选中动作总伤害" value={damageEstimate ? formatNumber(Math.round(damageEstimate.damage)) : '—'} sub="各段分别结算后合计" />
+          <Stat label="本次命中总伤害" value={damageEstimate ? formatNumber(Math.round(damageEstimate.damage)) : '—'} sub="所选动作的全部段正面命中" />
           <Stat label="击杀需动作数" value={damageEstimate?.hitsToKill ?? '—'} sub="全部段命中时" />
           <Stat label="本动作削韧" value={combatValue(damageEstimate?.poiseDamage)} sub={chosenPoiseDetail} />
           <Stat label="破韧需动作数" value={damageEstimate?.poiseHits ?? '—'} sub="全部段命中且韧性未恢复" />
-          <Stat label="敌人 HP / 韧性" value={chosenEnemy ? `${formatNumber(effectiveEnemyHpValue ?? 0)} / ${chosenEnemy.saDurability && chosenEnemy.saDurability > 0 ? chosenEnemy.saDurability : '不可破韧'}` : '—'} sub={newGameLabel(newGameCycle)} />
+          <Stat label="幽影树庇佑" value={`${scaduMultiplier.toFixed(3)}x`} sub={scaduStatusLabel(combatWorld, scaduLevel)} />
         </div>
         {chosenWeapon && <div className="combat-summary calculator-weapon-summary">
           <span>{chosenWeapon.name} +{chosenWeapon.upgrade}</span>
@@ -454,47 +587,7 @@ export function CalculatorPage() {
           <span className="desc">{chosenWeapon.owned ? '当前角色持有' : '完整目录模拟'} · {chosenWeapon.category}</span>
         </div>}
           {chosenEnemy && damageEstimate && <>
-          <div className="combat-summary">
-            <span>{chosenEnemy.nameVariant || chosenEnemy.name}</span>
-            <span>{chosenEnemy.region}</span>
-            <span>{newGameLabel(newGameCycle)}</span>
-            <span className="desc">按所选动作全部段正面命中计算；部位、暴击、弱点与状态效果未计入。</span>
-          </div>
-          <section className="combat-data-section">
-            <h4>防御值 <span>基础值 × 场景倍率 × {newGameLabel(newGameCycle)}修正</span></h4>
-            <div className="combat-data-grid defense-grid">
-              {DEFENSE_FIELDS.map(([key, label]) => {
-                const base = chosenEnemy.defense[key];
-                const scale = chosenEnemy.defenseScale[key];
-                return <div className="combat-data-item" key={key}>
-                  <span>{label}</span>
-                  <strong>{Math.round(effectiveEnemyDefense(chosenEnemy, key, newGameCycle))}</strong>
-                  <small>{base ?? '—'} × {scale?.toFixed(3) ?? '—'}{newGameCycle > 0 ? ` × ${chosenEnemy.newGameDefenseScale[key] ?? '—'}` : ''}</small>
-                </div>;
-              })}
-            </div>
-          </section>
-          <section className="combat-data-section">
-            <h4>承伤倍率 <span>低于 1 为减伤，高于 1 为弱点</span></h4>
-            <div className="combat-data-grid damage-taken-grid">
-              {DAMAGE_TAKEN_FIELDS.map(([key, label]) => <div className="combat-data-item" key={key}>
-                <span>{label}</span>
-                <strong>{damageTakenLabel(chosenEnemy.damageTaken[key])}</strong>
-              </div>)}
-            </div>
-          </section>
-          <section className="combat-data-section">
-            <h4>异常状态抗性 <span>{newGameLabel(newGameCycle)}修正后；数值越高越难触发</span></h4>
-            <div className="combat-data-grid status-resistance-grid">
-              {STATUS_FIELDS.map(([key, label]) => <div className="combat-data-item" key={key}>
-                <span>{label}</span>
-                <strong className={chosenEnemy.statusImmunity[key] ? 'immune' : ''}>
-                  {chosenEnemy.statusImmunity[key] ? '免疫' : effectiveEnemyStatusResistance(chosenEnemy, key, newGameCycle)?.toFixed(0) ?? '—'}
-                </strong>
-                {!chosenEnemy.statusImmunity[key] && <small>基础 {chosenEnemy.baseStatusResistance[key] ?? '—'}</small>}
-              </div>)}
-            </div>
-          </section>
+          <TargetCombatSummary enemy={chosenEnemy} newGameCycle={newGameCycle} world={combatWorld} scaduLevel={scaduLevel} />
           <details className="combat-details">
             <summary>数据详情</summary>
             <div className="combat-breakdown">
@@ -518,10 +611,13 @@ export function CalculatorPage() {
             <button type="button" className={`btn small ${weaponScope === 'owned' ? 'primary' : ''}`} onClick={() => setWeaponScope('owned')}>已持有</button>
             <button type="button" className={`btn small ${weaponScope === 'all' ? 'primary' : ''}`} onClick={() => setWeaponScope('all')}>全部武器</button>
           </div>
-          <input className="input" type="search" aria-label="搜索战技敌人" placeholder="搜索敌人中文、英文或地区" value={enemySearch} onChange={(event) => setEnemySearch(event.target.value)} />
+        </div>
+        <div className="row calculator-enemy-search">
+          <input className="input" type="search" aria-label="搜索战技敌人" placeholder="搜索 Boss、敌人、地区或配置变体" value={enemySearch} onChange={(event) => setEnemySearch(event.target.value)} />
+          <EnemyScopeControls scope={enemyScope} onScopeChange={setEnemyScope} visibleCount={filteredEnemies.length} totalCount={enemyCatalog.length} />
         </div>
         <div className="row combat-controls skill-calculator-controls">
-          <select className="select" aria-label="战技武器" value={chosenWeapon?.id ?? ''} onChange={(event) => { setSelectedWeaponId(Number(event.target.value)); setWeaponUpgrade(null); setSelectedSkillName(''); }}>
+          <select className="select" aria-label="战技武器" value={chosenWeapon?.id ?? ''} onChange={(event) => { setSelectedWeaponId(Number(event.target.value)); setWeaponUpgrade(null); setSelectedSkillName(''); setSelectedSkillAttackId(null); }}>
             {weapons.length === 0
               ? <option value="">没有匹配的武器</option>
               : weapons.map((weapon) => <option key={weapon.id} value={weapon.id}>{weapon.name}{weapon.owned ? ` · 已持有 +${weapon.defaultUpgrade}` : ''}</option>)}
@@ -531,26 +627,34 @@ export function CalculatorPage() {
             <button type="button" className={`btn small ${weaponHand === 'oneHand' ? 'primary' : ''}`} onClick={() => setWeaponHand('oneHand')}>单持</button>
             <button type="button" className={`btn small ${weaponHand === 'twoHand' ? 'primary' : ''}`} onClick={() => setWeaponHand('twoHand')}>双持</button>
           </div>
-          <select className="select" aria-label="战技" value={chosenSkill?.name ?? ''} disabled={availableSkills.length === 0} onChange={(event) => setSelectedSkillName(event.target.value)}>
+          <select className="select" aria-label="战技" value={chosenSkill?.name ?? ''} disabled={availableSkills.length === 0} onChange={(event) => { setSelectedSkillName(event.target.value); setSelectedSkillAttackId(null); }}>
             {availableSkills.length === 0
               ? <option value="">该武器没有可计算战技</option>
               : availableSkills.map((skill) => <option key={skill.name} value={skill.name}>{skill.name} · {skill.affinity}</option>)}
+          </select>
+          <select className="select" aria-label="战技攻击段" value={selectedSkillEstimate?.attack.id ?? ''} disabled={skillEstimates.length === 0} onChange={(event) => setSelectedSkillAttackId(Number(event.target.value))}>
+            {skillEstimates.length === 0
+              ? <option value="">没有可计算攻击段</option>
+              : skillEstimates.map((estimate) => <option key={estimate.attack.id} value={estimate.attack.id}>{estimate.attack.note || chosenSkill?.name} · {formatNumber(Math.round(estimate.damage))} 伤害</option>)}
           </select>
           <select className="select" aria-label="战技敌人" value={chosenEnemy?.npcParamId ?? ''} disabled={filteredEnemies.length === 0} onChange={(event) => setSelectedEnemyId(Number(event.target.value))}>
             {filteredEnemies.length === 0
               ? <option value="">没有匹配的敌人</option>
               : filteredEnemies.map((enemy, index) => <option key={`${enemy.npcParamId}-${index}`} value={enemy.npcParamId}>{enemy.nameVariant || enemy.name} · {enemy.region}</option>)}
           </select>
+          <CombatWorldControls world={combatWorld} scaduLevel={scaduLevel} onWorldChange={setCombatWorld} onScaduLevelChange={setScaduLevel} />
           <label className="calculator-upgrade calculator-cycle"><span>周目</span><select className="select" aria-label="战技模拟周目" value={newGameCycle} onChange={(event) => setNewGameCycle(Number(event.target.value))}>
             {NEW_GAME_CYCLES.map((cycle) => <option key={cycle} value={cycle}>{newGameLabel(cycle)}</option>)}
           </select></label>
         </div>
         <div className="stat-grid skill-result-grid">
-          <Stat label="当前战技" value={chosenSkill?.name ?? '—'} sub={chosenSkillWeapon ? `${chosenSkillWeapon.name} · ${chosenSkillWeapon.category}` : '没有表内武器映射'} />
-          <Stat label="攻击段 / 变体" value={skillEstimates.length} sub="每行独立结算，不自动假定连段" />
-          <Stat label="最高单段伤害" value={skillEstimates.length > 0 ? formatNumber(Math.round(Math.max(...skillEstimates.map((row) => row.damage)))) : '—'} sub="当前敌人与增益配置" />
-          <Stat label="敌人 HP / 韧性" value={chosenEnemy ? `${formatNumber(effectiveEnemyHpValue ?? 0)} / ${chosenEnemy.saDurability && chosenEnemy.saDurability > 0 ? chosenEnemy.saDurability : '不可破韧'}` : '—'} sub={newGameLabel(newGameCycle)} />
+          <Stat label="本次施放伤害" value={selectedSkillEstimate ? formatNumber(Math.round(selectedSkillEstimate.damage)) : '—'} sub={selectedSkillEstimate?.attack.note || chosenSkill?.name || '未选择攻击段'} />
+          <Stat label="击杀需施放" value={selectedSkillEstimate?.hitsToKill ?? '—'} sub="以选中攻击段连续命中估算" />
+          <Stat label="本次削韧" value={combatValue(selectedSkillEstimate?.poiseDamage)} sub={selectedSkillEstimate?.poiseHits == null ? '不可破韧' : `破韧约 ${selectedSkillEstimate.poiseHits} 次`} />
+          <Stat label="攻击段 / 变体" value={skillEstimates.length} sub="各段独立结算，不自动相加" />
+          <Stat label="幽影树庇佑" value={`${scaduMultiplier.toFixed(3)}x`} sub={scaduStatusLabel(combatWorld, scaduLevel)} />
         </div>
+        {chosenEnemy && <TargetCombatSummary enemy={chosenEnemy} newGameCycle={newGameCycle} world={combatWorld} scaduLevel={scaduLevel} />}
         <section className="spell-bonus-config skill-bonus-config" aria-label="战技增益配置">
           <div className="spell-bonus-heading">
             <div><span>增益配置</span><strong>{selectedSkillBuffs.length > 0 ? `已启用 ${selectedSkillBuffs.length} 项` : '未选择增益'}</strong></div>
@@ -581,8 +685,8 @@ export function CalculatorPage() {
         <div className="combat-table-wrap skill-result-table-wrap">
           <table className="tbl skill-result-table">
             <thead><tr><th>攻击段</th><th>攻击力构成</th><th className="num">实战伤害</th><th className="num">削韧</th><th>异常 / 累积</th><th>标签</th></tr></thead>
-            <tbody>{skillEstimates.length === 0 ? <tr><td colSpan={6} className="undone">所选武器或战技没有可计算的伤害参数</td></tr> : skillEstimates.map((estimate) => <tr key={estimate.attack.id}>
-              <td><strong>{estimate.attack.note || chosenSkill?.name}</strong><small className="skill-atk-id">Atk {estimate.attack.id} · {estimate.attack.valueDescription || estimate.attack.kind}</small></td>
+            <tbody>{skillEstimates.length === 0 ? <tr><td colSpan={6} className="undone">所选武器或战技没有可计算的伤害参数</td></tr> : skillEstimates.map((estimate) => <tr className={estimate.attack.id === selectedSkillEstimate?.attack.id ? 'is-selected' : undefined} key={estimate.attack.id}>
+              <td><button type="button" className="skill-attack-select" aria-pressed={estimate.attack.id === selectedSkillEstimate?.attack.id} onClick={() => setSelectedSkillAttackId(estimate.attack.id)}><strong>{estimate.attack.note || chosenSkill?.name}</strong><small className="skill-atk-id">Atk {estimate.attack.id} · {estimate.attack.valueDescription || estimate.attack.kind}</small></button></td>
               <td>{estimate.parts.map((part) => `${DAMAGE_ZH[part.type] ?? part.type} ${Math.round(part.attack)}`).join(' + ') || '—'}</td>
               <td className="num"><strong>{formatNumber(Math.round(estimate.damage))}</strong><small className="skill-atk-id">击杀约 {estimate.hitsToKill ?? '—'} 次</small></td>
               <td className="num">{combatValue(estimate.poiseDamage)}<small className="skill-atk-id">破韧约 {estimate.poiseHits ?? '—'} 次</small></td>
@@ -619,7 +723,7 @@ export function CalculatorPage() {
             value={enemySearch}
             onChange={(event) => setEnemySearch(event.target.value)}
           />
-          <span className="pill">{filteredEnemies.length} / {PLAYABLE_ENEMIES.length}</span>
+          <EnemyScopeControls scope={enemyScope} onScopeChange={setEnemyScope} visibleCount={filteredEnemies.length} totalCount={enemyCatalog.length} />
         </div>
         <div className="row combat-controls spell-calculator-controls">
           <select
@@ -642,9 +746,6 @@ export function CalculatorPage() {
             disabled={!chosenSpellCatalyst}
             onChange={(event) => setSpellUpgrade(Number(event.target.value))}
           /></label>
-          <label className="calculator-upgrade"><span>幽影树</span><select className="select" aria-label="幽影树庇佑等级" value={spellScaduLevel} onChange={(event) => setSpellScaduLevel(Number(event.target.value))}>
-            {Array.from({ length: 21 }, (_, level) => <option key={level} value={level}>庇佑 +{level}</option>)}
-          </select></label>
           <select
             className="select"
             aria-label="法术敌人"
@@ -656,10 +757,25 @@ export function CalculatorPage() {
               ? <option value="">没有匹配的敌人</option>
               : filteredEnemies.map((enemy, index) => <option key={`${enemy.npcParamId}-${index}`} value={enemy.npcParamId}>{enemy.nameVariant || enemy.name} · {enemy.region}</option>)}
           </select>
+          <CombatWorldControls world={combatWorld} scaduLevel={scaduLevel} onWorldChange={setCombatWorld} onScaduLevelChange={setScaduLevel} />
           <label className="calculator-upgrade calculator-cycle"><span>周目</span><select className="select" aria-label="法术模拟周目" value={newGameCycle} onChange={(event) => setNewGameCycle(Number(event.target.value))}>
             {NEW_GAME_CYCLES.map((cycle) => <option key={cycle} value={cycle}>{newGameLabel(cycle)}</option>)}
           </select></label>
         </div>
+        <div className="stat-grid spell-result-grid">
+          <Stat label="单次施放总伤害" value={spellEstimate ? formatNumber(Math.round(spellEstimate.damageTotal)) : '—'} sub={spellEstimate ? `${spellEstimate.attack.hitCount} 段全部命中` : '选择可计算的攻击动作与触媒'} />
+          <Stat label="单段伤害" value={spellEstimate ? formatNumber(Math.round(spellEstimate.damagePerHit)) : '—'} sub="按命中敌人防御结算" />
+          <Stat label="击杀需施放" value={spellEstimate?.hitsToKill ?? '—'} sub="全部段命中" />
+          <Stat label="削韧 / 破韧" value={combatValue(spellEstimate?.poiseTotal)} sub={spellEstimate?.poiseHits == null ? '不可破韧' : `约 ${spellEstimate.poiseHits} 次施放`} />
+          <Stat label="蓝耗 / 异常" value={spellEstimate?.focusCost == null ? '—' : `${Math.round(spellEstimate.focusCost)} FP`} sub={spellEstimate?.status || '无异常'} />
+          <Stat label="幽影树庇佑" value={`${scaduMultiplier.toFixed(3)}x`} sub={scaduStatusLabel(combatWorld, scaduLevel)} />
+        </div>
+        {spellEstimate && <div className="combat-summary">
+          <span>{spellCombatDisplayName(spellEstimate.attack.name)}</span>
+          <span>{chosenSpellCatalyst?.name ?? '—'} +{chosenSpellUpgrade}</span>
+          <span className="desc">按所选法术全部段正面命中计算；暴击、部位与敌人抗性削减未计入。</span>
+        </div>}
+        {chosenEnemy && <TargetCombatSummary enemy={chosenEnemy} newGameCycle={newGameCycle} world={combatWorld} scaduLevel={scaduLevel} />}
         <section className="spell-bonus-config" aria-label="法术增益配置">
           <div className="spell-bonus-heading">
             <div>
@@ -734,22 +850,8 @@ export function CalculatorPage() {
             {!selectedSpellCalculatorAttack && <p className="spell-bonus-warning">该攻击动作没有 v1.16 计算器标签，仍可查看基础倍率，但不会套用专属类别加成。</p>}
           </>}
         </section>
-        {spellEstimate && <>
-          <div className="stat-grid spell-result-grid">
-            <Stat label="单段伤害" value={formatNumber(Math.round(spellEstimate.damagePerHit))} sub="按命中敌人防御结算" />
-            <Stat label="单次施放总伤" value={formatNumber(Math.round(spellEstimate.damageTotal))} sub={`${spellEstimate.attack.hitCount} 段全部命中`} />
-            <Stat label="击杀需施放" value={spellEstimate.hitsToKill ?? '—'} sub="全部段命中" />
-            <Stat label="削韧 / 破韧" value={combatValue(spellEstimate.poiseTotal)} sub={spellEstimate.poiseHits == null ? '不可破韧' : `约 ${spellEstimate.poiseHits} 次施放`} />
-            <Stat label="蓝耗 / 异常" value={spellEstimate.focusCost == null ? '—' : `${Math.round(spellEstimate.focusCost)} FP`} sub={spellEstimate.status || '无异常'} />
-          </div>
-          <div className="combat-summary">
-            <span>{chosenEnemy?.nameVariant || chosenEnemy?.name}</span>
-            <span>{chosenSpellCatalyst?.name ?? '—'} +{chosenSpellUpgrade}</span>
-            <span>{newGameLabel(newGameCycle)} · 幽影树庇佑 +{spellScaduLevel}</span>
-            <span className="desc">按所选法术全部段正面命中计算；暴击、部位与敌人抗性削减未计入。</span>
-          </div>
-          <section className="combat-data-section">
-            <h4>伤害结算 <span>攻击力 → 防御曲线 → 承伤 → 增益 → 幽影树庇佑</span></h4>
+        {spellEstimate && <section className="combat-data-section">
+            <h4>伤害结算 <span>攻击力 → 防御曲线 → 承伤 → 增益 → 幽影地时应用庇佑</span></h4>
             <div className="combat-table-wrap spell-breakdown-table-wrap">
               <table className="tbl spell-breakdown-table">
                 <thead><tr><th>属性</th><th className="num">攻击力</th><th className="num">成长</th><th className="num">防御</th><th className="num">承伤</th><th className="num">增益</th><th className="num">装备</th><th className="num">伤害</th></tr></thead>
@@ -766,8 +868,7 @@ export function CalculatorPage() {
               </table>
             </div>
             {!spellEstimate.requirementSatisfied && <p className="spell-bonus-warning">属性未满足法术或触媒需求，成长按 0.6 结算。</p>}
-          </section>
-        </>}
+          </section>}
         <div className="combat-table-wrap">
           <table className="tbl">
             <thead><tr><th>法术</th><th>攻击倍率</th><th className="num">PvE 削韧</th><th className="num">PvE 削精</th><th aria-label="配置" /></tr></thead>

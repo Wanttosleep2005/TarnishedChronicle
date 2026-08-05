@@ -34,6 +34,8 @@ import { Ds3ChatPage } from './pages/Ds3ChatPage.tsx';
 import { Ds3AchievementsPage } from './pages/Ds3AchievementsPage.tsx';
 import { Ds3SettingsPage } from './pages/Ds3SettingsPage.tsx';
 import { SoulCareerCard } from './components/SoulCareerCard.tsx';
+import { launcherVisibility } from './lib/launcherVisibility.ts';
+import type { Ds3Root, Sts2Root } from '../../shared/contracts.ts';
 
 type GameKey = 'er' | 'sts2' | 'ds3';
 
@@ -482,13 +484,34 @@ function Ds3Shell({ goLauncher }: { goLauncher: () => void }) {
 }
 
 function Launcher({ onPick }: { onPick: (game: GameKey) => void }) {
+  const [roots, setRoots] = useState<{ readonly sts2: readonly Sts2Root[]; readonly ds3: readonly Ds3Root[] }>({
+    sts2: [],
+    ds3: [],
+  });
+
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([
+      window.api.sts2Detect().catch(() => []),
+      window.api.ds3Detect().catch(() => []),
+    ]).then(([sts2, ds3]) => {
+      if (!cancelled) setRoots({ sts2, ds3 });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const visibility = launcherVisibility(roots.sts2, roots.ds3);
+  const visibleGameCount = 1 + Number(visibility.sts2) + Number(visibility.ds3);
+
   return (
     <div className="launcher">
       <div className="launcher-head">
         <div className="launcher-title">存 档 编 年 史</div>
         <div className="launcher-sub">SAVE CHRONICLES · 选择要进入的世界</div>
       </div>
-      <div className="launcher-cards">
+      <div className={`launcher-cards launcher-cards--${visibleGameCount}`}>
         <div className="game-card game-er" onClick={() => onPick('er')}>
           <div className="game-emblem">
             <svg width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#e8c76a" strokeWidth="3.4" strokeLinecap="round">
@@ -501,7 +524,7 @@ function Launcher({ onPick }: { onPick: (game: GameKey) => void }) {
           <div className="game-desc">艾尔登法环 · 进度 / 地图 / 徽章 / 编年史</div>
           <div className="game-enter">进入交界地 →</div>
         </div>
-        <div className="game-card game-sts2" onClick={() => onPick('sts2')}>
+        {visibility.sts2 && <div className="game-card game-sts2" onClick={() => onPick('sts2')}>
           <div className="game-emblem">
             <svg width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#f0863f" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round">
               <path d="M27 64V26l9-18 9 18v38" />
@@ -512,8 +535,8 @@ function Launcher({ onPick }: { onPick: (game: GameKey) => void }) {
           <div className="game-name">杀戮尖塔 II</div>
           <div className="game-desc">生涯统计 / 角色战绩 / 对局复盘(官方简中)</div>
           <div className="game-enter">开始攀塔 →</div>
-        </div>
-        <div className="game-card game-ds3" onClick={() => onPick('ds3')}>
+        </div>}
+        {visibility.ds3 && <div className="game-card game-ds3" onClick={() => onPick('ds3')}>
           <div className="game-emblem">
             <svg width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="#d8823c" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M36 6c-2 8-1 14 0 20M36 26 30 62h12L36 26Z" />
@@ -524,9 +547,9 @@ function Launcher({ onPick }: { onPick: (game: GameKey) => void }) {
           <div className="game-name">黑暗之魂 III</div>
           <div className="game-desc">不死人名册 / 升级规划 / 火之意志成就</div>
           <div className="game-enter">传火 →</div>
-        </div>
+        </div>}
       </div>
-      <SoulCareerCard />
+      <SoulCareerCard sts2Roots={roots.sts2} ds3Roots={roots.ds3} />
       <div className="launcher-foot">存档只读 · 永不写入 · 上次的选择会被记住</div>
     </div>
   );

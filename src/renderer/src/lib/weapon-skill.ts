@@ -16,6 +16,8 @@ import {
   effectiveEnemyStatusResistance,
   effectivePoiseDamage,
   newGameLabel,
+  scaduDamageMultiplier,
+  type CombatContext,
 } from './build-insights.ts';
 import { skillBaseAttackAt } from './weapon-ar.ts';
 
@@ -170,7 +172,9 @@ export function estimateSkillAttack(
   buffs: readonly SkillBuff[] = [],
   twoHanding = false,
   newGameCycle = 0,
+  context: Readonly<Partial<CombatContext>> = {},
 ): SkillAttackEstimate {
+  const scaduMultiplier = scaduDamageMultiplier(context);
   const power = skillAttackPower(attrs, paramId, upgrade, panel, attack, twoHanding);
   const physicalType = physicalTypeForAttack(attack, weapon);
   const parts = DAMAGE_TYPES.flatMap((type): SkillDamagePart[] => {
@@ -187,7 +191,7 @@ export function estimateSkillAttack(
       takenType,
       taken,
       buffMultiplier,
-      damage: damageAfterDefense(attackValue, defense) * taken * buffMultiplier,
+      damage: damageAfterDefense(attackValue, defense) * taken * buffMultiplier * scaduMultiplier,
     }];
   });
   const damage = parts.reduce((sum, part) => sum + part.damage, 0);

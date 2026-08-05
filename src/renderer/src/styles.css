@@ -239,6 +239,8 @@ body {
 .main {
   min-width: 0;
   overflow-y: auto;
+  container-name: main-content;
+  container-type: inline-size;
   padding: 26px 32px 48px;
   background:
     radial-gradient(1100px 500px at 85% -10%, rgba(201, 166, 98, 0.05), transparent 60%),
@@ -4736,7 +4738,8 @@ textarea.input {
   border-radius: 0 5px 5px 0;
   text-align: center;
 }
-.calculator-cycle .select {
+.calculator-cycle .select,
+.calculator-scadu .select {
   width: 100%;
   height: 100%;
   min-width: 0;
@@ -4755,7 +4758,7 @@ textarea.input {
   flex-basis: 260px;
 }
 .skill-result-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
   margin-top: 12px;
 }
@@ -4785,6 +4788,28 @@ textarea.input {
   max-width: 210px;
   color: var(--muted);
   white-space: normal;
+}
+.skill-result-table tr.is-selected td {
+  background: rgba(var(--accent-rgb), 0.08);
+}
+.skill-attack-select {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.skill-attack-select:hover strong,
+.skill-attack-select:focus-visible strong {
+  color: var(--gold-2);
+}
+.skill-attack-select:focus-visible {
+  outline: 1px solid var(--gold-dim);
+  outline-offset: 3px;
 }
 .skill-atk-id {
   display: block;
@@ -5002,6 +5027,14 @@ textarea.input {
 .combat-result-grid .stat {
   min-width: 0;
 }
+.spell-result-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+.spell-result-grid .stat {
+  min-width: 0;
+}
 .combat-summary {
   display: flex;
   align-items: baseline;
@@ -5010,6 +5043,92 @@ textarea.input {
   margin-top: 10px;
   color: var(--gold-2);
   font-size: 12px;
+}
+.target-combat-summary {
+  margin-top: 14px;
+  border-top: 1px solid var(--line-2);
+  border-bottom: 1px solid var(--line-2);
+  background: rgba(var(--accent-rgb), 0.025);
+}
+.target-combat-head {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+}
+.target-combat-head > div {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 5px 9px;
+}
+.target-combat-head > div:last-child {
+  justify-content: flex-end;
+  color: var(--faint);
+  font-size: 10.5px;
+}
+.target-combat-head strong {
+  overflow: hidden;
+  color: var(--gold-2);
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.target-combat-head strong + span {
+  color: var(--muted);
+  font-size: 10.5px;
+}
+.target-combat-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+}
+.target-combat-metrics > div {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 8px;
+  padding: 10px 12px;
+  border-right: 1px solid var(--line);
+}
+.target-combat-metrics > div:last-child {
+  border-right: 0;
+}
+.target-combat-metrics span,
+.target-combat-metrics small {
+  overflow: hidden;
+  color: var(--faint);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.target-combat-metrics strong {
+  color: var(--gold-2);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+.target-combat-metrics small {
+  grid-column: 1 / -1;
+  text-align: right;
+}
+.target-combat-details {
+  border-top: 1px solid var(--line);
+}
+.target-combat-details > summary {
+  padding: 9px 12px;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+}
+.target-combat-details .combat-data-section {
+  margin-top: 0;
+  padding: 10px 12px 12px;
 }
 .combat-data-section {
   margin-top: 12px;
@@ -5262,6 +5381,14 @@ textarea.input {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 30px;
 }
+.launcher-cards--1 {
+  width: min(100%, 360px);
+  grid-template-columns: minmax(0, 1fr);
+}
+.launcher-cards--2 {
+  width: min(100%, 700px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .game-card {
   width: auto;
   min-width: 0;
@@ -5378,6 +5505,12 @@ textarea.input {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+}
+.soul-career-grid--1 {
+  grid-template-columns: minmax(0, 1fr);
+}
+.soul-career-grid--2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .soul-career-grid > div {
   display: flex;
@@ -5950,7 +6083,77 @@ textarea.input {
   width: 58px;
   text-align: center;
 }
+@container main-content (max-width: 900px) {
+  .equipment-page > .grid-2,
+  .loadout-top-grid,
+  .loadout-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .combat-result-grid,
+  .skill-result-grid,
+  .spell-result-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .spell-bonus-selects {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .damage-taken-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .loadout-stat-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .loadout-talisman-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@container main-content (max-width: 640px) {
+  .calculator-enemy-search,
+  .loadout-catalog-toolbar,
+  .spell-bonus-heading,
+  .target-combat-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .calculator-enemy-search .input {
+    min-width: 0;
+  }
+  .calculator-enemy-search .calculator-segmented,
+  .spell-bonus-heading .btn {
+    width: 100%;
+  }
+  .calculator-enemy-search .calculator-segmented .btn {
+    flex: 1;
+  }
+  .combat-result-grid,
+  .skill-result-grid,
+  .spell-result-grid,
+  .spell-bonus-selects,
+  .loadout-attrs,
+  .loadout-stat-grid,
+  .loadout-ar-grid,
+  .loadout-slot-section,
+  .loadout-slot-list,
+  .loadout-talisman-list,
+  .target-combat-metrics,
+  .damage-taken-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .target-combat-head > div:last-child {
+    justify-content: flex-start;
+  }
+  .target-combat-metrics > div {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .target-combat-metrics > div:last-child {
+    border-bottom: 0;
+  }
+}
 @media (max-width: 980px) {
+  .main {
+    padding: 22px 20px 40px;
+  }
   .spell-bonus-selects {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -6068,6 +6271,9 @@ textarea.input {
   }
 }
 @media (max-width: 640px) {
+  .main {
+    padding: 18px 14px 32px;
+  }
   .map-grace-toolbar {
     align-items: stretch;
     flex-direction: column;

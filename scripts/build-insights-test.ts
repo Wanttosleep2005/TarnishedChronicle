@@ -25,6 +25,8 @@ const enemy = {
 } as unknown as EnemyCombatRow;
 const result = estimateEnemyHit(enemy, attack, action);
 const ngPlusTwoResult = estimateEnemyHit(enemy, attack, action, 2);
+const mainlandScaduResult = estimateEnemyHit(enemy, attack, action, 0, { world: 'lands-between', scaduLevel: 20 });
+const shadowScaduResult = estimateEnemyHit(enemy, attack, action, 0, { world: 'shadow-realm', scaduLevel: 20 });
 if (Math.round(damageAfterDefense(100, 800)) !== 10 || Math.round(damageAfterDefense(100, 100)) !== 40 || Math.round(damageAfterDefense(250, 100)) !== 175 || Math.round(damageAfterDefense(800, 100)) !== 720) {
   throw new Error('攻防比边界值与威力表公式不一致');
 }
@@ -36,5 +38,11 @@ if (Math.round(ngPlusTwoResult.damage) !== 311 || ngPlusTwoResult.hitsToKill !==
 }
 if (Math.round(result.damage) !== 328 || result.hitsToKill !== 4 || result.poiseHits !== 4) {
   throw new Error(`敌人实战换算异常:${JSON.stringify(result)}`);
+}
+if (Math.abs(mainlandScaduResult.damage - result.damage) > 0.001) {
+  throw new Error('交界地武器动作不应应用幽影树庇佑');
+}
+if (Math.abs(shadowScaduResult.damage - result.damage * 2.05) > 0.001) {
+  throw new Error('幽影地武器动作应应用幽影树庇佑 +20');
 }
 console.log('Build 实战换算测试通过');

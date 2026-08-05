@@ -1,7 +1,7 @@
 @echo off
 setlocal
 cd /d "%~dp0"
-title Tarnished Chronicle v0.6.0
+title Tarnished Chronicle v0.20.2
 
 if not exist "package.json" goto :missing
 
@@ -10,16 +10,15 @@ call :sync_source
 
 set "ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/"
 if not exist "node_modules\electron\package.json" set "NEED_INSTALL=1"
+if not exist "node_modules\.bin\electron-vite.cmd" set "NEED_INSTALL=1"
 if defined SYNC_DEPS_CHANGED set "NEED_INSTALL=1"
 if defined NEED_INSTALL (
   echo [1/2] Installing dependencies...
-  call npm install --no-audit --no-fund
-  if errorlevel 1 goto :fail
+  call npm install --no-audit --no-fund || goto :fail
 )
 
-echo [2/2] Starting v0.6.0 from current source...
-call npm run dev
-if errorlevel 1 goto :fail
+echo [2/2] Starting v0.20.2 from current source...
+call npm run dev || goto :fail
 exit /b 0
 
 :sync_source
