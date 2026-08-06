@@ -1,7 +1,14 @@
 import { useMemo, useState } from 'react';
 import { MapPinIcon } from '../../../components/icons.tsx';
+import { EVIDENCE_LEVEL_LABELS } from '../../../lib/quest-evidence.ts';
+import {
+  buildQuestGraphEdges,
+  getIncomingQuestGraphEdges,
+  getOutgoingQuestGraphEdges,
+  type QuestGraphEdge,
+} from '../../../lib/quest-graph.ts';
 import { useSaveContext } from '../../../lib/save-context.tsx';
-import type { QuestStatus, QuestView } from '../../../lib/quests.ts';
+import type { QuestRelationKind, QuestStatus, QuestView } from '../../../lib/quests.ts';
 import { gracePixelByFlagId } from '../../../lib/worldmap.ts';
 import {
   deriveNpcDecisionSummary,
@@ -32,6 +39,52 @@ const PRIORITY_META: Record<NpcDecisionPriority, { label: string; description: s
   later: { label: '可稍后处理', description: '路线尚未开始，可先准备' },
 };
 
+const RELATION_KIND_LABELS: Record<QuestRelationKind, string> = {
+  reference: '资料关联',
+  prerequisite: '前置',
+  branch: '分支',
+  impact: '影响',
+  reward: '奖励',
+  route: '顺路',
+};
+
+interface QuestDecisionRelation {
+  readonly edge: QuestGraphEdge;
+  readonly direction: 'outgoing' | 'incoming';
+  readonly targetId: string;
+  readonly targetNpc: string;
+}
+
+function relationsForQuest(
+  edges: readonly QuestGraphEdge[],
+  questId: string,
+): {
+  readonly outgoingCount: number;
+  readonly incomingCount: number;
+  readonly items: readonly QuestDecisionRelation[];
+} {
+  const outgoing = getOutgoingQuestGraphEdges(edges, questId);
+  const incoming = getIncomingQuestGraphEdges(edges, questId);
+  return {
+    outgoingCount: outgoing.length,
+    incomingCount: incoming.length,
+    items: [
+      ...outgoing.map((edge) => ({
+        edge,
+        direction: 'outgoing' as const,
+        targetId: edge.toId,
+        targetNpc: edge.toNpc,
+      })),
+      ...incoming.map((edge) => ({
+        edge,
+        direction: 'incoming' as const,
+        targetId: edge.fromId,
+        targetNpc: edge.fromNpc,
+      })),
+    ],
+  };
+}
+
 function routeDetail(route: NpcDecisionRoute, facet: NpcDecisionFacet): string {
   if (facet === 'risk') return route.recordedWarnings[0] ?? route.currentStage.objective;
   if (facet === 'rewards') {
@@ -45,14 +98,17 @@ export function NpcDecisionBar({
   quests,
   selectedQuestId,
   onFocusStage,
+  onFocusNpc,
 }: {
   quests: readonly QuestView[];
   selectedQuestId: string | null;
   onFocusStage: (questId: string, stageIndex: number) => void;
+  onFocusNpc?: (questId: string) => void;
 }) {
   const { requestMapFocus } = useSaveContext();
   const [facet, setFacet] = useState<NpcDecisionFacet>('actionable');
   const summary = useMemo(() => deriveNpcDecisionSummary(quests), [quests]);
+  const graphEdges = useMemo(() => buildQuestGraphEdges(quests), [quests]);
   const visibleEditions = summary.editions.flatMap((edition) => {
     const worlds = edition.worlds.flatMap((world) => {
       const regions = world.regions.flatMap((region) => {
@@ -118,6 +174,7 @@ export function NpcDecisionBar({
                           const projected = route.currentStage.mapGraceFlagId === null
                             ? null
                             : (gracePixelByFlagId.get(route.currentStage.mapGraceFlagId) ?? null);
+                          const relations = relationsForQuest(graphEdges, route.questId);
                           return (
                             <article key={route.questId} className={`quest-decision-route ${selectedQuestId === route.questId ? 'is-selected' : ''}`}>
                               <button
@@ -150,6 +207,33 @@ export function NpcDecisionBar({
                                   {route.timeline.length > 3 && <li className="is-more">另有 {route.timeline.length - 3} 个后续阶段</li>}
                                 </ol>
                               </button>
+                              <div className={`quest-decision-relations ${relations.items.length === 0 ? 'is-empty' : ''}`} aria-label={`${route.npc}的关系边摘要`}>
+                                <span>
+                                  关系 <b>{relations.outgoingCount}</b> 出 · <b>{relations.incomingCount}</b> 入
+                                </span>
+                                {relations.items.length > 0 ? (
+                                  <div>
+                                    {relations.items.map(({ edge, direction, targetId, targetNpc }, index) => (
+                                      <button
+                                        key={`${direction}-${edge.fromId}-${edge.toId}-${edge.kind}-${index}`}
+                                        className={`quest-decision-relation relation-kind-${edge.kind} relation-level-${edge.level}`}
+                                        type="button"
+                                        title={`${edge.note} · 证据：${EVIDENCE_LEVEL_LABELS[edge.level]}`}
+                                        aria-label={`${direction === 'outgoing' ? `${route.npc}指向${targetNpc}` : `${targetNpc}指向${route.npc}`}：${RELATION_KIND_LABELS[edge.kind]}，证据${EVIDENCE_LEVEL_LABELS[edge.level]}。${edge.note}`}
+                                        disabled={!onFocusNpc}
+                                        onClick={() => onFocusNpc?.(targetId)}
+                                      >
+                                        <span aria-hidden="true">{direction === 'outgoing' ? '→' : '←'}</span>
+                                        <em>{RELATION_KIND_LABELS[edge.kind]}</em>
+                                        <strong>{targetNpc}</strong>
+                                        <small>{EVIDENCE_LEVEL_LABELS[edge.level]}</small>
+                                      </button>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <small>暂无已收录关系边</small>
+                                )}
+                              </div>
                               {projected && (
                                 <button
                                   className="icon-button quest-decision-map"

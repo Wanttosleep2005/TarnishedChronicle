@@ -30,6 +30,8 @@
     "test:quests-impact-ui": "tsx scripts/quests-impact-ui-test.ts",
     "test:quests-decision": "tsx scripts/quests-decision-test.ts",
     "test:quests-decision-ui": "tsx scripts/quests-decision-ui-test.ts",
+    "test:quests-evidence": "tsx scripts/quests-evidence-test.ts",
+    "test:quests-graph": "tsx scripts/quests-graph-test.ts",
     "test:sidebar-navigation": "tsx scripts/sidebar-navigation-test.ts",
     "test:fuzzy-search": "tsx scripts/fuzzy-search-test.ts",
     "test:equipment-details": "tsx scripts/equipment-details-test.ts",

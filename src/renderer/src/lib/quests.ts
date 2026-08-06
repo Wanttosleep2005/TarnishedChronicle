@@ -168,10 +168,25 @@ export function questRewardHasExactIcon(reward: QuestReward): boolean {
   return QUEST_REWARD_ICON_INDEX.has(rewardIconKey(reward.kind, reward.name));
 }
 
+export type QuestRelationKind = 'reference' | 'prerequisite' | 'branch' | 'impact' | 'reward' | 'route';
+export type QuestRelationLevel = 'confirmed' | 'inferred' | 'unknown';
+
+export interface QuestRelationDef {
+  /** 目标 NPC 英文 id（与 QuestView.id 一致） */
+  to: string;
+  kind: QuestRelationKind;
+  /** 关系说明；留空则由 kind 生成默认说明 */
+  note?: string;
+  /** 证据等级：手工整理的关系默认为 inferred，资料明确陈述的可用 confirmed */
+  level?: QuestRelationLevel;
+}
+
 interface QuestEnrichment {
   related?: readonly string[];
   warnings?: readonly string[];
   rewardsByStage?: Readonly<Record<number, readonly QuestReward[]>>;
+  /** 结构化关系边：比 related 更明确的语义（前置/分支/影响/奖励来源/顺路） */
+  relations?: readonly QuestRelationDef[];
 }
 
 export type QuestStatus = 'done' | 'ongoing' | 'unstarted' | 'interrupted';
@@ -186,6 +201,14 @@ export interface QuestStageView {
   rewards: readonly QuestReward[];
 }
 
+export interface QuestRelationView {
+  toId: string;
+  toNpc: string;
+  kind: QuestRelationKind;
+  note: string;
+  level: QuestRelationLevel;
+}
+
 export interface QuestView {
   id: string;
   npc: string;
@@ -197,6 +220,7 @@ export interface QuestView {
   next: QuestStageView | null;
   stages: readonly QuestStageView[];
   related: readonly { id: string; npc: string }[];
+  relations: readonly QuestRelationView[];
   warnings: readonly string[];
 }
 
@@ -679,10 +703,10 @@ const EXTRA_QUESTS: readonly QuestDef[] = [
 const QUEST_ENRICHMENTS: ReadonlyMap<string, QuestEnrichment> = new Map<string, QuestEnrichment>([
   ['Ranni the Witch', { related: ['Blaidd the Half-Wolf', 'Preceptor Seluvis', 'Sorcerer Rogier', 'Fia, Deathbed Companion'], rewardsByStage: { 0: [{ name: '召魂铃', kind: 'key-item', branch: '夜晚在艾雷教堂初见蕾娜' }, { name: '离群野狼的骨灰', kind: 'ash', branch: '夜晚在艾雷教堂初见蕾娜' }], 1: [{ name: '猎杀指头刀', kind: 'key-item' }, { name: '卡利亚颠倒像', kind: 'key-item' }], 2: [{ name: '娇小菈妮', kind: 'key-item' }], 3: [{ name: '被丢弃的王室钥匙', kind: 'key-item' }], 4: [{ name: '暗月戒指', kind: 'key-item' }], 5: [{ name: '暗月大剑', kind: 'weapon' }, { name: '雪魔女套装', kind: 'armor' }] } }],
   ['Blaidd the Half-Wolf', { related: ['Ranni the Witch', 'Preceptor Seluvis'], rewardsByStage: { 0: [{ name: '弹指', kind: 'gesture' }], 1: [{ name: '失色锻造石【２】', kind: 'upgrade' }, { name: '卡利亚徽章', kind: 'talisman' }], 4: [{ name: '王室巨剑', kind: 'weapon' }, { name: '布莱泽套装', kind: 'armor' }, { name: '黑狼面具', kind: 'armor' }] } }],
-  ['Preceptor Seluvis', { related: ['Ranni the Witch', 'Nepheli Loux, Warrior', 'Dung Eater'], warnings: ['药水的交付对象会影响涅斐丽与食粪者路线；想完整体验请先阅读各关联任务。'], rewardsByStage: { 1: [{ name: '赛尔维斯的药水', kind: 'key-item' }], 2: [{ name: '涅斐丽·露的傀儡', kind: 'ash', branch: '交给涅斐丽' }, { name: '食粪者的傀儡', kind: 'ash', branch: '交给食粪者' }, { name: '“深眠之箭”朵罗雷丝的傀儡', kind: 'ash', branch: '交给百智爵士后购买' }], 3: [{ name: '琥珀星光', kind: 'key-item' }, { name: '琥珀色药水', kind: 'key-item' }], 4: [{ name: '赛尔维斯的铃珠', kind: 'key-item' }, { name: '魔法教授套装', kind: 'armor' }] } }],
+  ['Preceptor Seluvis', { related: ['Ranni the Witch', 'Nepheli Loux, Warrior', 'Dung Eater'], warnings: ['药水的交付对象会影响涅斐丽与食粪者路线；想完整体验请先阅读各关联任务。'], relations: [{ to: 'Nepheli Loux, Warrior', kind: 'impact', note: '药水交给涅斐丽会中断她的继承线' }, { to: 'Dung Eater', kind: 'impact', note: '药水交给食粪者会获得食粪者傀儡' }], rewardsByStage: { 1: [{ name: '赛尔维斯的药水', kind: 'key-item' }], 2: [{ name: '涅斐丽·露的傀儡', kind: 'ash', branch: '交给涅斐丽' }, { name: '食粪者的傀儡', kind: 'ash', branch: '交给食粪者' }, { name: '“深眠之箭”朵罗雷丝的傀儡', kind: 'ash', branch: '交给百智爵士后购买' }], 3: [{ name: '琥珀星光', kind: 'key-item' }, { name: '琥珀色药水', kind: 'key-item' }], 4: [{ name: '赛尔维斯的铃珠', kind: 'key-item' }, { name: '魔法教授套装', kind: 'armor' }] } }],
   ['Fia, Deathbed Companion', { related: ['D, Hunter of the Dead', 'Ranni the Witch'], rewardsByStage: { 0: [{ name: '床帘恩泽', kind: 'key-item' }], 1: [{ name: '侵蚀短剑', kind: 'key-item' }, { name: 'Ｄ的铃珠', kind: 'key-item' }, { name: '菲雅风帽', kind: 'armor' }], 3: [{ name: '死王子的修复卢恩', kind: 'key-item' }, { name: '紧密孪生剑', kind: 'weapon' }, { name: '孪生套装', kind: 'armor' }] } }],
   ['D, Hunter of the Dead', { related: ['Fia, Deathbed Companion'], rewardsByStage: { 2: [{ name: '孪生铠甲', kind: 'armor' }], 3: [{ name: '紧密孪生剑', kind: 'weapon' }] } }],
-  ['Dung Eater', { related: ['Blackguard Big Boggart', 'Preceptor Seluvis'], warnings: ['食粪者的壕沟步骤会杀死流氓；先完成流氓的对话和购买。'], rewardsByStage: { 0: [{ name: '下水道监牢钥匙', kind: 'key-item' }], 3: [{ name: '忌讳诅咒的修复卢恩', kind: 'key-item', branch: '交付五个温床诅咒' }, { name: '恶兆套装', kind: 'armor', branch: '交付五个温床诅咒' }, { name: '食粪者的傀儡', kind: 'ash', branch: '赛尔维斯分支' }] } }],
+  ['Dung Eater', { related: ['Blackguard Big Boggart', 'Preceptor Seluvis'], warnings: ['食粪者的壕沟步骤会杀死流氓；先完成流氓的对话和购买。'], relations: [{ to: 'Blackguard Big Boggart', kind: 'impact', note: '食粪者任务会在王城外壕沟杀死流氓' }], rewardsByStage: { 0: [{ name: '下水道监牢钥匙', kind: 'key-item' }], 3: [{ name: '忌讳诅咒的修复卢恩', kind: 'key-item', branch: '交付五个温床诅咒' }, { name: '恶兆套装', kind: 'armor', branch: '交付五个温床诅咒' }, { name: '食粪者的傀儡', kind: 'ash', branch: '赛尔维斯分支' }] } }],
   ['The Noble Goldmask', { related: ['Brother Corhyn'], rewardsByStage: { 1: [{ name: '回归性原理', kind: 'incantation' }, { name: '黄金律法全貌', kind: 'gesture' }], 3: [{ name: '完美律法的修复卢恩', kind: 'key-item' }, { name: '金面具套装', kind: 'armor' }] } }],
   ['Brother Corhyn', { related: ['The Noble Goldmask'], rewardsByStage: { 2: [{ name: '黄金律法原本', kind: 'key-item' }], 5: [{ name: '柯林的铃珠', kind: 'key-item' }, { name: '柯林长袍', kind: 'armor' }] } }],
   ['Alexander, Warrior Jar', { related: ['Knight Diallos'], rewardsByStage: { 0: [{ name: '勇者肉块', kind: 'key-item' }], 3: [{ name: '壶头罩', kind: 'armor' }], 5: [{ name: '亚历山大的碎片', kind: 'talisman' }, { name: '亚历山大的内容物', kind: 'key-item' }] } }],
@@ -782,6 +806,24 @@ function predicateMet(
   return (predicate.all?.every(met) ?? true) && (predicate.any ? predicate.any.some(met) : true);
 }
 
+const QUEST_RELATION_NOTE: Record<QuestRelationKind, string> = {
+  reference: '资料收录的关联路线',
+  prerequisite: '资料收录的前置条件',
+  branch: '资料收录的分支选择',
+  impact: '资料收录的相互影响',
+  reward: '资料收录的奖励来源',
+  route: '资料收录的顺路路线',
+};
+
+const QUEST_RELATION_LEVEL: Record<QuestRelationKind, QuestRelationLevel> = {
+  reference: 'confirmed',
+  prerequisite: 'inferred',
+  branch: 'inferred',
+  impact: 'inferred',
+  reward: 'inferred',
+  route: 'inferred',
+};
+
 export function deriveQuests(profile: CharacterProfile, eventFlags?: Uint8Array): QuestView[] {
   const defeatedRows = profile.bossRows.filter((row) => row.defeated);
   const defeatedNames = new Set(defeatedRows.flatMap((row) => (row.boss.name ? [row.boss.name] : [])));
@@ -821,6 +863,17 @@ export function deriveQuests(profile: CharacterProfile, eventFlags?: Uint8Array)
       related: (enrichment?.related ?? []).flatMap((id) => {
         const npc = npcById.get(id);
         return npc ? [{ id, npc }] : [];
+      }),
+      relations: (enrichment?.relations ?? []).flatMap((relation) => {
+        const npc = npcById.get(relation.to);
+        if (!npc) return [];
+        return [{
+          toId: relation.to,
+          toNpc: npc,
+          kind: relation.kind,
+          note: relation.note ?? QUEST_RELATION_NOTE[relation.kind],
+          level: relation.level ?? QUEST_RELATION_LEVEL[relation.kind],
+        }];
       }),
       warnings: enrichment?.warnings ?? [],
     };

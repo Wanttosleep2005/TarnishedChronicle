@@ -3137,6 +3137,103 @@ textarea.input {
   justify-content: center;
   color: var(--muted);
 }
+.quest-decision-relations {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 2px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--line-2);
+}
+.quest-decision-relations > span {
+  color: var(--muted);
+  font-size: 8px;
+}
+.quest-decision-relations > span b {
+  color: var(--gold-dim);
+  font-weight: 600;
+}
+.quest-decision-relations > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.quest-decision-relations > small {
+  color: var(--faint);
+  font-size: 8px;
+}
+.quest-decision-relation {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 6px;
+  border: 1px solid rgba(var(--accent-rgb), 0.14);
+  border-radius: 3px;
+  color: var(--gold-dim);
+  background: rgba(var(--accent-rgb), 0.035);
+  font-size: 8px;
+  line-height: 1.35;
+  cursor: pointer;
+}
+.quest-decision-relation:disabled {
+  cursor: default;
+}
+.quest-decision-relation:hover:not(:disabled) {
+  border-color: rgba(var(--accent-rgb), 0.4);
+  background: rgba(var(--accent-rgb), 0.08);
+}
+.quest-decision-relation > span {
+  color: var(--muted);
+}
+.quest-decision-relation em {
+  color: var(--faint);
+  font-size: 7.5px;
+  font-style: normal;
+}
+.quest-decision-relation strong {
+  font-weight: 500;
+}
+.quest-decision-relation small {
+  padding-left: 3px;
+  border-left: 1px solid var(--line-2);
+  color: var(--muted);
+  font-size: 7.5px;
+}
+.quest-decision-relation.relation-kind-prerequisite {
+  border-color: rgba(168, 130, 90, 0.32);
+  background: rgba(168, 130, 90, 0.05);
+}
+.quest-decision-relation.relation-kind-branch {
+  border-color: rgba(117, 152, 189, 0.32);
+  background: rgba(117, 152, 189, 0.05);
+}
+.quest-decision-relation.relation-kind-impact {
+  border-color: rgba(182, 111, 81, 0.32);
+  background: rgba(176, 73, 47, 0.06);
+  color: #d29a7b;
+}
+.quest-decision-relation.relation-kind-reward {
+  border-color: rgba(197, 165, 93, 0.32);
+  background: rgba(197, 165, 93, 0.05);
+}
+.quest-decision-relation.relation-kind-route {
+  border-color: rgba(104, 158, 128, 0.32);
+  background: rgba(104, 158, 128, 0.05);
+}
+.quest-decision-relation.relation-level-confirmed small {
+  color: #9fc3a0;
+}
+.quest-decision-relation.relation-level-inferred small {
+  color: #c9a86a;
+}
+.quest-decision-relation.relation-level-unknown small {
+  color: var(--faint);
+}
+.quest-decision-relations.is-empty {
+  padding-top: 4px;
+  border-top: none;
+}
 .quest-decision-map {
   position: absolute;
   top: 9px;

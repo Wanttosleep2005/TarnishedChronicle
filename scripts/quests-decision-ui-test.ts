@@ -20,12 +20,19 @@ check(actionBar.includes('aria-label={`在地图查看${route.npc}的${route.cur
 check(actionBar.includes('route.priority'), '行动卡片应显示统一决策优先级');
 check(actionBar.includes('route.timeline'), '行动卡片应提供当前阶段时间线');
 check(actionBar.includes('quest-decision-timeline'), '行动卡片应提供紧凑时间线视觉结构');
+check(actionBar.includes("from '../../../lib/quest-graph.ts'"), '行动栏应从统一关系图模型读取关系边');
+check(actionBar.includes('onFocusNpc?: (questId: string) => void;'), '行动栏应提供可选的 NPC 关系聚焦回调');
+check(actionBar.includes('quest-decision-relations'), '每条行动卡片应显示出边与入边关系摘要');
+check(actionBar.includes('relation-kind-${edge.kind}'), '关系徽标应按关系类型提供视觉类名');
+check(actionBar.includes('relation-level-${edge.level}'), '关系徽标应按证据等级提供视觉类名');
+check(actionBar.includes('onFocusNpc?.(targetId)'), '点击关系项应聚焦关系另一端 NPC 的当前阶段');
 
 const focusHandler = questsPage.match(/const focusDecisionStage = \(id: string, stageIndex: number\) => \{([\s\S]*?)\n  \};/);
 check(focusHandler !== null, '行动栏应有独立的共同聚焦处理器');
 check(focusHandler![1].includes('selectQuest(id, stageIndex);'), '行动栏点击应同步任务工作流和阶段');
 check(focusHandler![1].includes('setConstellationQuestId(id);'), '行动栏点击应同步星图节点焦点');
 check(questsPage.includes('onFocusStage={focusDecisionStage}'), '行动栏组件应使用共同聚焦处理器');
+check(questsPage.includes('onFocusNpc={selectQuest}'), '行动栏关系点击应复用既有任务聚焦逻辑');
 
 const actionBarIndex = questsPage.indexOf('<NpcDecisionBar');
 const flowIndex = questsPage.indexOf('<QuestFlow');
@@ -37,5 +44,10 @@ check(actionBar.includes('NPC_DECISION_EVIDENCE_NOTE'), '行动栏应直接显�
 check(!questsPage.includes('因果、战利品与抉择'), '任务图不得继续把资料关联描述为严格因果');
 check(styles.includes('.quest-decision-bar'), '行动栏应具有独立的暗金视觉样式');
 check(styles.includes('.quest-decision-route'), 'NPC 当前阶段入口应具有可扫描样式');
+check(styles.includes('.quest-decision-relations'), '关系摘要应具有独立布局样式');
+check(styles.includes('.relation-kind-impact'), '结构化影响关系应具有类型视觉区分');
+check(styles.includes('.relation-level-confirmed'), '已确认证据应具有等级视觉区分');
+check(styles.includes('.relation-level-inferred'), '推断证据应具有等级视觉区分');
+check(styles.includes('.relation-level-unknown'), '未知证据应具有等级视觉区分');
 
 console.log('NPC 全局行动栏 UI 契约测试通过');

@@ -1289,6 +1289,7 @@ export function QuestsPage() {
         quests={quests}
         selectedQuestId={workflowQuestId ?? quests.find((quest) => quest.status === 'ongoing')?.id ?? quests[0]?.id ?? null}
         onFocusStage={focusDecisionStage}
+        onFocusNpc={selectQuest}
       />
 
       <QuestFlow
