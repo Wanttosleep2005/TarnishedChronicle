@@ -17,7 +17,10 @@ check(
 );
 check(questsPage.includes('重置视图'), '思维导图应提供视图复位');
 check(questsPage.includes('quest-mindmap-node'), '思维导图节点应可聚焦任务工作流');
-check(questsPage.includes("closest('.quest-mindmap-node')"), '节点点击不应被画布拖拽行为拦截');
+check(
+  /\.closest\s*(?:<\s*HTMLElement\s*>)?\s*\(\s*['"]\.quest-mindmap-node['"]\s*\)/.test(questsPage),
+  '节点点击不应被画布拖拽行为拦截',
+);
 check(styles.includes('.quest-mindmap-viewport'), '思维导图应有专用视口样式');
 check(styles.includes('touch-action: none'), '思维导图触控拖拽不应触发浏览器手势');
 

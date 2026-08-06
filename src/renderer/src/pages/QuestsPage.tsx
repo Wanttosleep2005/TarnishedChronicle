@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { ItemThumb, PageHead } from '../components/ui.tsx';
 import { MapPinIcon, TargetIcon } from '../components/icons.tsx';
+import { NpcDecisionBar } from '../features/quests/components/NpcDecisionBar.tsx';
 import { deriveProfile } from '../lib/derive.ts';
 import { analyzeQuestImpact, type QuestImpactRelationDirection } from '../lib/quest-impact.ts';
 import { fuzzyMatch } from '../lib/fuzzy-search.ts';
@@ -99,9 +100,9 @@ const MINDMAP_WORLD_WIDTH = 1_180;
 const MINDMAP_WORLD_HEIGHT = 860;
 const MINDMAP_INITIAL_VIEW = { x: 16, y: 14, scale: 0.62 };
 const IMPACT_DIRECTION_LABEL: Record<QuestImpactRelationDirection, string> = {
-  mutual: '双向牵连',
-  outgoing: '影响对方',
-  incoming: '受其影响',
+  mutual: '相互收录关联',
+  outgoing: '本路线提及',
+  incoming: '被对方提及',
 };
 
 function QuestRewardBadge({ reward, stageLabel }: { reward: QuestReward; stageLabel?: string }) {
@@ -272,7 +273,7 @@ function QuestFlow({
         <div className="quest-flow-detail-actions">
           {activeQuest.related.length > 0 && (
             <div className="quest-flow-relations">
-              <span>牵连路线</span>
+              <span>资料关联路线</span>
               <div>{activeQuest.related.map((related) => <button key={related.id} type="button" onClick={() => onFocus(related.id)}>{related.npc}</button>)}</div>
             </div>
           )}
@@ -332,9 +333,9 @@ function QuestImpactDesk({
       </div>
 
       <div className="quest-impact-metrics" aria-label="所选路线影响概览">
-        <span><b>{impact.relations.length}</b>牵连路线</span>
-        <span><b>{impact.remainingRewards.length}</b>后续奖励</span>
-        <span className={warningCount > 0 ? 'has-risk' : ''}><b>{warningCount}</b>锁线提醒</span>
+        <span><b>{impact.relations.length}</b>资料关联</span>
+        <span><b>{impact.remainingRewards.length}</b>后续已收录奖励</span>
+        <span className={warningCount > 0 ? 'has-risk' : ''}><b>{warningCount}</b>已收录风险</span>
         <span><b>{remainingRegions.length}</b>待经地区</span>
       </div>
 
@@ -374,7 +375,7 @@ function QuestImpactDesk({
           <div className="quest-impact-modes" role="tablist" aria-label="命运推演视图">
             {(
               [
-                ['relations', '牵连与风险'],
+                ['relations', '关联与风险'],
                 ['rewards', '奖励路径'],
                 ['regions', '地区轨迹'],
               ] as [QuestImpactMode, string][]
@@ -402,7 +403,7 @@ function QuestImpactDesk({
                       <small>{IMPACT_DIRECTION_LABEL[relation.direction]}{relation.status ? ` · ${STATUS_META[relation.status].label}` : ''}</small>
                     </button>
                   ))}
-                  {impact.relations.length === 0 && <span className="quest-impact-empty">暂无直接牵连路线。</span>}
+                  {impact.relations.length === 0 && <span className="quest-impact-empty">暂无直接资料关联路线。</span>}
                 </div>
                 {warningCount > 0 ? (
                   <div className="quest-impact-warning-ledger">
@@ -415,7 +416,7 @@ function QuestImpactDesk({
                       </button>
                     ))}
                   </div>
-                ) : <span className="quest-impact-empty">当前关联链没有已收录的锁线提醒。</span>}
+                ) : <span className="quest-impact-empty">当前资料关联中没有已收录风险。</span>}
               </>
             )}
 
@@ -429,7 +430,7 @@ function QuestImpactDesk({
                     {reward.branch && <em>{reward.branch}</em>}
                   </button>
                 ))}
-                {impact.remainingRewards.length === 0 && <span className="quest-impact-empty">所选阶段之后没有未领取奖励。</span>}
+                {impact.remainingRewards.length === 0 && <span className="quest-impact-empty">所选阶段起没有后续已收录奖励。</span>}
               </div>
             )}
 
@@ -547,7 +548,7 @@ function QuestCompass({
           </div>
           {activeQuest.related.length > 0 && (
             <div className="quest-compass-related">
-              <span>路线牵连</span>
+              <span>资料关联</span>
               <div>{activeQuest.related.map((related) => <button key={related.id} type="button" onClick={() => onFocus(related.id)}>{related.npc}</button>)}</div>
             </div>
           )}
@@ -779,6 +780,13 @@ function QuestMindmap({
     setView(mindmapInitialView(scope));
   }, [scope]);
 
+  useEffect(() => {
+    if (!constellationQuestId) return;
+    const selected = quests.find((quest) => quest.id === constellationQuestId);
+    if (!selected) return;
+    if ((scope === 'base' && selected.dlc) || (scope === 'dlc' && !selected.dlc)) setScope('all');
+  }, [constellationQuestId, quests, scope]);
+
   const toggleConstellationMode = (mode: ConstellationMode) => {
     setConstellationMode((current) => current === mode ? null : mode);
   };
@@ -854,7 +862,7 @@ function QuestMindmap({
       <div className="quest-mindmap-heading">
         <div>
           <span>任务图</span>
-          <strong>{quests.length} 条路线的因果、战利品与抉择</strong>
+          <strong>{quests.length} 条路线的关联、战利品与抉择</strong>
         </div>
         <div className="quest-mindmap-zoom" aria-label="星图缩放">
           <button className="icon-button" type="button" title="缩小" aria-label="缩小任务图" onClick={() => changeZoom(-0.12)}>−</button>
@@ -879,10 +887,10 @@ function QuestMindmap({
         <div className="quest-mindmap-legend" aria-label="任务关系图例">
           <span><i className="is-mutual" aria-hidden="true" />相互关联</span>
           <span><i className="is-one-way" aria-hidden="true" />单向提及</span>
-          <span><i className="has-risk" aria-hidden="true" />牵涉风险</span>
+          <span><i className="has-risk" aria-hidden="true" />关联节点含已收录风险</span>
         </div>
         <span className="quest-mindmap-status">
-          {scope === 'related' && focusedQuest ? `围绕 ${focusedQuest.npc} 显示 ${visibleNodes.length} 条直接牵连路线` : `显示 ${visibleNodes.length} 条路线 · ${visibleRelations.length} 条关系`}
+          {scope === 'related' && focusedQuest ? `围绕 ${focusedQuest.npc} 显示 ${visibleNodes.length} 条直接资料关联路线` : `显示 ${visibleNodes.length} 条路线 · ${visibleRelations.length} 条资料关系`}
         </span>
       </div>
       <div
@@ -908,7 +916,7 @@ function QuestMindmap({
               {(
                 [
                   ['relations', '关联', focusedConnections.length],
-                  ['rewards', '战利品', focusedRewards.length],
+                  ['rewards', '已收录战利品', focusedRewards.length],
                   ['warnings', '分歧风险', focusedQuest?.warnings.length ?? 0],
                 ] as [ConstellationMode, string, number][]
               ).map(([key, label, count]) => (
@@ -937,7 +945,7 @@ function QuestMindmap({
           {constellationMode && (
             <div className="quest-constellation-drawer">
               <div className="quest-constellation-drawer-heading">
-                <span>{constellationMode === 'relations' ? '关联路线' : constellationMode === 'rewards' ? '可得战利品' : '分歧风险'}</span>
+                <span>{constellationMode === 'relations' ? '资料关联路线' : constellationMode === 'rewards' ? '已收录战利品' : '已收录分歧风险'}</span>
                 <button
                   className="icon-button quest-constellation-drawer-close"
                   type="button"
@@ -959,7 +967,7 @@ function QuestMindmap({
                         </button>
                       ))}
                     </div>
-                  ) : <span>此路线暂无已收录的直接牵连。</span>
+                  ) : <span>此路线暂无已收录的直接资料关联。</span>
                 )}
                 {constellationMode === 'rewards' && (
                   focusedRewards.length ? (
@@ -973,7 +981,7 @@ function QuestMindmap({
                 {constellationMode === 'warnings' && (
                   focusedQuest?.warnings.length ? (
                     <div className="quest-warnings">{focusedQuest.warnings.map((warning) => <span key={warning}>{warning}</span>)}</div>
-                  ) : <span>此路线暂无已收录的锁线风险。</span>
+                  ) : <span>此路线暂无已收录的分歧风险。</span>
                 )}
               </div>
             </div>
@@ -993,7 +1001,7 @@ function QuestMindmap({
               const highlighted = relation.fromId === activeQuestId || relation.toId === activeQuestId;
               const fromQuest = questById.get(relation.fromId);
               const toQuest = questById.get(relation.toId);
-              const semantic = relation.mutual ? '相互关联' : '单向提及';
+              const semantic = relation.mutual ? '相互收录关联' : '单向资料提及';
               return (
                 <path
                   key={`${relation.fromId}-${relation.toId}`}
@@ -1001,7 +1009,7 @@ function QuestMindmap({
                   d={mindmapEdgePath(from, to)}
                   markerEnd={relation.mutual ? undefined : 'url(#quest-relation-arrow)'}
                 >
-                  <title>{`${fromQuest?.npc ?? relation.fromId} → ${toQuest?.npc ?? relation.toId} · ${semantic}${relation.hasRisk ? ' · 牵涉锁线风险' : ''}`}</title>
+                  <title>{`${fromQuest?.npc ?? relation.fromId} → ${toQuest?.npc ?? relation.toId} · ${semantic}${relation.hasRisk ? ' · 关联节点含已收录风险' : ''}`}</title>
                 </path>
               );
             })}
@@ -1020,6 +1028,7 @@ function QuestMindmap({
                 type="button"
                 data-quest-id={quest.id}
                 aria-label={`聚焦 ${quest.npc} 的任务路线`}
+                aria-pressed={quest.id === activeQuestId}
                 onClick={() => { if (!justDragged.current) onSelectQuest(quest.id); }}
               >
                 <span>{quest.npc}</span>
@@ -1219,6 +1228,11 @@ export function QuestsPage() {
     setConstellationQuestId(id);
   };
 
+  const focusDecisionStage = (id: string, stageIndex: number) => {
+    selectQuest(id, stageIndex);
+    setConstellationQuestId(id);
+  };
+
   const jumpToQuest = (id: string, stageIndex?: number) => {
     selectQuest(id, stageIndex);
     setFilter('all');
@@ -1270,6 +1284,12 @@ export function QuestsPage() {
   return (
     <div className="page quest-page">
       <PageHead title="NPC 任务引导" sub={`当前地区随存档进度更新 · 进行中 ${ongoing} 条 · 已完成 ${done} 条 · 共 ${quests.length} 条`} />
+
+      <NpcDecisionBar
+        quests={quests}
+        selectedQuestId={workflowQuestId ?? quests.find((quest) => quest.status === 'ongoing')?.id ?? quests[0]?.id ?? null}
+        onFocusStage={focusDecisionStage}
+      />
 
       <QuestFlow
         quests={quests}
